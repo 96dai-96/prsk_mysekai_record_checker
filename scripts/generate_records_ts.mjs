@@ -97,65 +97,65 @@ function extractUnitsFromHtml(html) {
   return matched;
 }
 
-// 公式 musics.json から pronunciation (読み仮名) を取得
-async function fetchOfficialPronunciations() {
-  const localPath = path.join(__dirname, 'official_musics.json');
-  let list = null;
+/**
+ * カタカナ（ヴ含む）をひらがなへ正規化する
+ */
+function toHiraganaReading(text) {
+  if (!text) return '';
+  return text
+    .trim()
+    .replace(/ヴ/g, 'ゔ')
+    .replace(/[\u30a1-\u30f6]/g, (match) => {
+      const chr = match.charCodeAt(0) - 0x60;
+      return String.fromCharCode(chr);
+    });
+}
 
-  if (fs.existsSync(localPath)) {
+/**
+ * 既存の allRecords.ts および手動読み辞書 (scripts/song_readings_map.json) から読み仮名マップを構築する
+ * （ゲーム内部データへの参照は行わない）
+ */
+function loadReadingMap() {
+  const map = new Map();
+
+  // 1. 既存の allRecords.ts に登録済みの reading を引き継ぐ
+  const existingPath = path.join(__dirname, '..', 'src', 'data', 'allRecords.ts');
+  if (fs.existsSync(existingPath)) {
     try {
-      list = JSON.parse(fs.readFileSync(localPath, 'utf8'));
-      console.log(`Loaded ${list.length} records from local official_musics.json.`);
+      const content = fs.readFileSync(existingPath, 'utf8');
+      const match = content.match(/export const ALL_RECORDS: RecordItem\[\] = (\[[\s\S]*\]);/);
+      if (match) {
+        const existingList = JSON.parse(match[1]);
+        for (const rec of existingList) {
+          if (rec?.title && rec?.reading) {
+            const normalized = toHiraganaReading(rec.reading);
+            map.set(rec.title.trim(), normalized);
+            map.set(rec.title.trim().toLowerCase(), normalized);
+          }
+        }
+      }
     } catch {
-      list = null;
+      // パース失敗時は空のまま続行
     }
   }
 
-  if (!list) {
-    list = await new Promise((resolve) => {
-      https
-        .get(
-          'https://raw.githubusercontent.com/Sekai-World/sekai-master-db-diff/master/musics.json',
-          { headers: { 'User-Agent': 'Mozilla/5.0' } },
-          (res) => {
-            const chunks = [];
-            res.on('data', (c) => chunks.push(c));
-            res.on('end', () => {
-              try {
-                const b = Buffer.concat(chunks).toString('utf8');
-                resolve(JSON.parse(b));
-              } catch {
-                resolve([]);
-              }
-            });
-          }
-        )
-        .on('error', () => resolve([]));
-    });
-  }
-
-  const map = new Map();
-  if (Array.isArray(list)) {
-    list.forEach((m) => {
-      if (m.title && m.pronunciation) {
-        let pron = m.pronunciation.trim();
-        // 既知の公式表記バグ・カタカナ補正
-        if (m.title === '白い雪のプリンセスは') {
-          pron = 'しろいゆきのぷりんせすは';
+  // 2. 手動管理の読み辞書 (scripts/song_readings_map.json) で上書き・補完する
+  const manualReadingsPath = path.join(__dirname, 'song_readings_map.json');
+  if (fs.existsSync(manualReadingsPath)) {
+    try {
+      const manualMap = JSON.parse(fs.readFileSync(manualReadingsPath, 'utf8'));
+      for (const [title, reading] of Object.entries(manualMap)) {
+        if (typeof reading === 'string' && reading.trim()) {
+          const normalized = toHiraganaReading(reading);
+          map.set(title.trim(), normalized);
+          map.set(title.trim().toLowerCase(), normalized);
         }
-        // カタカナ「ヴ」をひらがな「ゔ」に変換
-        pron = pron.replace(/ヴ/g, 'ゔ');
-        // 全角カタカナをひらがなに変換
-        pron = pron.replace(/[\u30a1-\u30f6]/g, (match) => {
-          const chr = match.charCodeAt(0) - 0x60;
-          return String.fromCharCode(chr);
-        });
-
-        map.set(m.title.trim(), pron);
-        map.set(m.title.trim().toLowerCase(), pron);
       }
-    });
+    } catch {
+      // ignore
+    }
   }
+
   return map;
 }
 
@@ -288,9 +288,9 @@ async function main() {
   const rawData = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'));
   console.log(`Loaded ${rawData.length} imported records.`);
 
-  console.log('Fetching official pronunciations from Sekai-World/sekai-master-db-diff...');
-  const pronunciationMap = await fetchOfficialPronunciations();
-  console.log(`Fetched ${pronunciationMap.size} official pronunciations.`);
+  console.log('Loading reading map from existing records and song_readings_map.json...');
+  const pronunciationMap = loadReadingMap();
+  console.log(`Loaded ${pronunciationMap.size} reading entries.`);
 
   const records = rawData.map((item) => {
     // 配信日のフォーマット正規化 (YYYY/MM/DD -> YYYY-MM-DD)
@@ -381,11 +381,11 @@ async function main() {
       jacketUrlSekai = item.jacketUrl;
     }
 
-    // 正式読み仮名（公式DB優先、フォールバックは既存値またはタイトル）
+    // 読み仮名（既存データ・手動辞書優先、未登録時はタイトルのカタカナをひらがな化）
     const officialReading =
       pronunciationMap.get(item.title.trim()) ||
       pronunciationMap.get(item.title.trim().toLowerCase()) ||
-      item.title;
+      toHiraganaReading(item.title);
 
     const recordObj = {
       id: `rec_${item.no}`,
@@ -420,7 +420,7 @@ async function main() {
   const withJackets = records.filter((r) => r.jacketUrl).length;
   console.log(`Jacket extracted: ${withJackets} / ${records.length} records.`);
 
-  const tsContent = `// 自動生成ファイル (pjsekai.com より全${records.length}曲インポート・公式pronunciation読み仮名適用済み・シンガーID正規化済み)
+  const tsContent = `// 自動生成ファイル (pjsekai.com より全${records.length}曲インポート・読み仮名適用済み・シンガーID正規化済み)
 import type { RecordItem } from '../types/record';
 
 export const ALL_RECORDS: RecordItem[] = ${JSON.stringify(records, null, 2)};

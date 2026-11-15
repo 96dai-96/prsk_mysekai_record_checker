@@ -314,7 +314,7 @@ async function main() {
     }
     mdLines.push('');
     mdLines.push(
-      '> ⚠️ **開発者確認事項**: 新規追加された楽曲は初期状態では「カバー楽曲」として登録されています。書き下ろし楽曲（箱イベ・バナーキャラ等）の場合は、`scripts/song_tags_map.json` にタグ情報を追記してください。'
+      '> ⚠️ **開発者確認事項**: 新規追加された楽曲は初期状態では「カバー楽曲」として登録されています。書き下ろし楽曲（箱イベ・バナーキャラ等）の場合は `scripts/song_tags_map.json` にタグ情報を、漢字・英字タイトルで読み仮名の補正が必要な場合は `scripts/song_readings_map.json` に読み情報を追記してください。'
     );
     mdLines.push('');
   }

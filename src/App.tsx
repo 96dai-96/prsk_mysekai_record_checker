@@ -265,6 +265,14 @@ export const App: React.FC = () => {
           <p className="text-slate-400">
             当サイトの利用によって生じた何らかのトラブルや不利益に対し、作成者は一切の責任を負いかねます。自己責任にてご利用いただきますよう、あらかじめご了承ください。
           </p>
+          <div className="pt-3 mt-3 border-t border-slate-200/60 space-y-1 text-[11px] text-slate-400">
+            <p>
+              当サイトで扱っているゲーム関連の画像・楽曲情報等の著作権は、各権利者に帰属します。
+            </p>
+            <p className="font-medium text-slate-500">
+              © SEGA / © Colorful Palette Inc. / © Crypton Future Media, INC. www.piapro.net All rights reserved.
+            </p>
+          </div>
         </div>
       </footer>
       {/* 共有URLからの復元確認モーダル */}

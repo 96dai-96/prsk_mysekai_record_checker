@@ -5,6 +5,8 @@ import type {
   FilterOptions,
   SavedCompareCondition,
 } from '../types/record';
+import { ALL_RECORDS } from '../data/allRecords';
+import defaultDataSnapshots from '../data/dataSnapshots.json';
 
 /**
  * 達成率・所持率の計算結果
@@ -193,98 +195,420 @@ export const filterAndSortRecords = (
 };
 
 /**
- * 所持リストをURL共有・共有コード用文字列（BitSet Base64URL、約122文字）に圧縮エンコードする
+ * データ世代スナップショット情報
  */
-export const encodeShareData = (
-  ownedRecordIds: Record<string, boolean>,
-  totalCount: number = 727
-): string => {
-  // レコードIDから最大番号を特定（デフォルト727以上ならそれに合わせる）
-  let maxOrder = totalCount;
-  for (const id of Object.keys(ownedRecordIds)) {
-    if (ownedRecordIds[id] && id.startsWith('rec_')) {
-      const order = parseInt(id.replace('rec_', ''), 10);
-      if (!isNaN(order) && order > maxOrder) {
-        maxOrder = order;
+export interface DataRevisionSnapshot {
+  label: string;
+  updatedAt: string;
+  recordCount: number;
+  ids?: string[];
+  idAliases?: Record<string, string>;
+}
+
+/**
+ * データ世代管理設定
+ */
+export interface DataSnapshotsConfig {
+  currentRevision: number;
+  revisions: Record<string, DataRevisionSnapshot>;
+}
+
+/**
+ * 進捗コードのエンコードオプション
+ */
+export interface EncodeShareOptions {
+  records?: RecordItem[];
+  snapshots?: DataSnapshotsConfig;
+  totalCount?: number;
+}
+
+/**
+ * 進捗コードのデコード解析結果
+ */
+export interface ParsedShareData {
+  ok: boolean;
+  format: 'b2' | 'b1' | 'legacy_json' | 'invalid';
+  isLegacy: boolean;
+  isChecksumValid: boolean;
+  dataRevision?: number;
+  dataLabel?: string;
+  sourceRecordCount?: number;
+  unknownRevision?: boolean;
+  ownedMap: Record<string, boolean>;
+  ownedCount: number;
+  unmappedCount: number;
+  errorMessage?: string;
+}
+
+const B2_FORMAT_VERSION = 0x02;
+const B2_HEADER_BYTES = 5;
+const B2_CHECKSUM_BYTES = 2;
+
+/**
+ * CRC-16-CCITT (多項式 0x1021, 初期値 0xFFFF) を計算する
+ */
+function computeCrc16(bytes: Uint8Array, length: number): number {
+  let crc = 0xffff;
+  for (let i = 0; i < length; i++) {
+    crc ^= bytes[i] << 8;
+    for (let bit = 0; bit < 8; bit++) {
+      if ((crc & 0x8000) !== 0) {
+        crc = ((crc << 1) ^ 0x1021) & 0xffff;
+      } else {
+        crc = (crc << 1) & 0xffff;
       }
     }
   }
+  return crc;
+}
 
-  const byteLength = Math.ceil(maxOrder / 8);
-  const bytes = new Uint8Array(byteLength);
-
-  for (let order = 1; order <= maxOrder; order++) {
-    if (ownedRecordIds[`rec_${order}`]) {
-      const byteIdx = Math.floor((order - 1) / 8);
-      const bitIdx = (order - 1) % 8;
-      bytes[byteIdx] |= 1 << bitIdx;
-    }
-  }
-
-  // Uint8Array を Base64URL 文字列に変換
+/**
+ * Uint8Array を Base64URL 文字列に変換する
+ */
+function bytesToBase64Url(bytes: Uint8Array): string {
   let binary = '';
   for (let i = 0; i < bytes.length; i++) {
     binary += String.fromCharCode(bytes[i]);
   }
-  const base64 = btoa(binary)
+  return btoa(binary)
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
     .replace(/=+$/, '');
+}
 
-  return `b1_${base64}`;
+/**
+ * Base64URL 文字列を Uint8Array に変換する（不正な文字や形式は null を返す）
+ */
+function base64UrlToBytes(token: string): Uint8Array | null {
+  if (!token || !/^[A-Za-z0-9_-]+$/.test(token)) {
+    return null;
+  }
+  try {
+    const b64 = token.replace(/-/g, '+').replace(/_/g, '/');
+    const padLen = (4 - (b64.length % 4)) % 4;
+    const binary = atob(b64 + '='.repeat(padLen));
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 入力文字列（URL または進捗コード本体）から共有トークンを抽出する
+ */
+export const extractShareToken = (rawInput: string): string => {
+  const trimmed = rawInput.trim();
+  if (!trimmed) return '';
+  if (trimmed.includes('share=')) {
+    try {
+      const urlObj = new URL(trimmed);
+      return (urlObj.searchParams.get('share') || trimmed).trim();
+    } catch {
+      const match = trimmed.match(/share=([^&\s#]+)/);
+      if (match && match[1]) return match[1].trim();
+    }
+  }
+  return trimmed;
 };
 
 /**
- * 共有文字列（BitSet または 旧形式JSON Base64）から所持マップを復元する
+ * 所持リストを新形式（b2_: データラベル・曲数ヘッダ・CRC-16チェックサム付き BitSet Base64URL）で圧縮エンコードする
  */
-export const decodeShareData = (shareString: string): Record<string, boolean> => {
-  if (!shareString) return {};
-  const trimmed = shareString.trim();
+export const encodeShareData = (
+  ownedRecordIds: Record<string, boolean>,
+  totalCountOrOptions: number | RecordItem[] | EncodeShareOptions = ALL_RECORDS
+): string => {
+  let records: RecordItem[] = ALL_RECORDS;
+  let snapshots: DataSnapshotsConfig = defaultDataSnapshots as DataSnapshotsConfig;
+  let explicitCount: number | undefined;
 
-  // 新形式: BitSet (プレフィックス b1_)
-  if (trimmed.startsWith('b1_')) {
-    try {
-      const b64 = trimmed
-        .slice(3)
-        .replace(/-/g, '+')
-        .replace(/_/g, '/');
-      // パディング復元
-      const padLen = (4 - (b64.length % 4)) % 4;
-      const paddedB64 = b64 + '='.repeat(padLen);
-      const binary = atob(paddedB64);
-      const map: Record<string, boolean> = {};
+  if (typeof totalCountOrOptions === 'number') {
+    explicitCount = totalCountOrOptions;
+  } else if (Array.isArray(totalCountOrOptions)) {
+    records = totalCountOrOptions;
+  } else if (totalCountOrOptions && typeof totalCountOrOptions === 'object') {
+    if (totalCountOrOptions.records) records = totalCountOrOptions.records;
+    if (totalCountOrOptions.snapshots) snapshots = totalCountOrOptions.snapshots;
+    if (typeof totalCountOrOptions.totalCount === 'number') {
+      explicitCount = totalCountOrOptions.totalCount;
+    }
+  }
 
-      for (let byteIdx = 0; byteIdx < binary.length; byteIdx++) {
-        const byteVal = binary.charCodeAt(byteIdx);
-        for (let bitIdx = 0; bitIdx < 8; bitIdx++) {
-          if ((byteVal & (1 << bitIdx)) !== 0) {
-            const order = byteIdx * 8 + bitIdx + 1;
-            map[`rec_${order}`] = true;
+  const revision = snapshots.currentRevision || 1;
+  const revSnapshot = snapshots.revisions[String(revision)];
+
+  // エンコード対象となるID順序リストを決定
+  let orderedIds: string[];
+  if (typeof explicitCount === 'number' && !Array.isArray(totalCountOrOptions)) {
+    if (revSnapshot?.ids && revSnapshot.ids.length >= explicitCount) {
+      orderedIds = revSnapshot.ids.slice(0, explicitCount);
+    } else if (records.length >= explicitCount && explicitCount > 0) {
+      orderedIds = records.slice(0, explicitCount).map((r) => r.id);
+    } else {
+      orderedIds = Array.from({ length: Math.max(0, explicitCount) }, (_, i) => `rec_${i + 1}`);
+    }
+  } else if (revSnapshot?.ids && revSnapshot.ids.length > 0 && records === ALL_RECORDS) {
+    orderedIds = revSnapshot.ids;
+  } else {
+    orderedIds = records.map((r) => r.id);
+  }
+
+  const bitCount = orderedIds.length;
+  const bitByteLen = Math.ceil(bitCount / 8);
+  const totalBytes = B2_HEADER_BYTES + bitByteLen + B2_CHECKSUM_BYTES;
+  const bytes = new Uint8Array(totalBytes);
+
+  // ヘッダ部 (5バイト): [version(1)] [revision(2)] [bitCount(2)]
+  bytes[0] = B2_FORMAT_VERSION;
+  bytes[1] = (revision >> 8) & 0xff;
+  bytes[2] = revision & 0xff;
+  bytes[3] = (bitCount >> 8) & 0xff;
+  bytes[4] = bitCount & 0xff;
+
+  // データ部 (BitSet)
+  for (let i = 0; i < bitCount; i++) {
+    if (ownedRecordIds[orderedIds[i]]) {
+      const byteIdx = B2_HEADER_BYTES + (i >> 3);
+      const bitIdx = i & 7;
+      bytes[byteIdx] |= 1 << bitIdx;
+    }
+  }
+
+  // 末尾チェックサム (CRC-16, 2バイト)
+  const crc = computeCrc16(bytes, B2_HEADER_BYTES + bitByteLen);
+  bytes[B2_HEADER_BYTES + bitByteLen] = (crc >> 8) & 0xff;
+  bytes[B2_HEADER_BYTES + bitByteLen + 1] = crc & 0xff;
+
+  return `b2_${bytesToBase64Url(bytes)}`;
+};
+
+/**
+ * 共有文字列（b2_ 新形式、b1_ 旧形式、JSON Base64 旧形式）を詳細解析し、チェックサム検証およびデータラベル解決を行う
+ */
+export const parseShareData = (
+  shareString: string,
+  options?: { records?: RecordItem[]; snapshots?: DataSnapshotsConfig }
+): ParsedShareData => {
+  const token = extractShareToken(shareString || '');
+  if (!token) {
+    return {
+      ok: false,
+      format: 'invalid',
+      isLegacy: false,
+      isChecksumValid: false,
+      ownedMap: {},
+      ownedCount: 0,
+      unmappedCount: 0,
+      errorMessage: '進捗コードが空です。',
+    };
+  }
+
+  const records = options?.records ?? ALL_RECORDS;
+  const snapshots = options?.snapshots ?? (defaultDataSnapshots as DataSnapshotsConfig);
+  const validIdSet = new Set(records.map((r) => r.id));
+
+  // 1. 新形式: b2_ (ヘッダ + BitSet + CRC-16チェックサム)
+  if (token.startsWith('b2_')) {
+    const bytes = base64UrlToBytes(token.slice(3));
+    if (!bytes || bytes.length < B2_HEADER_BYTES + B2_CHECKSUM_BYTES) {
+      return {
+        ok: false,
+        format: 'invalid',
+        isLegacy: false,
+        isChecksumValid: false,
+        ownedMap: {},
+        ownedCount: 0,
+        unmappedCount: 0,
+        errorMessage: 'コードが途中で切れているか、使用できない文字が含まれています。',
+      };
+    }
+
+    if (bytes[0] !== B2_FORMAT_VERSION) {
+      return {
+        ok: false,
+        format: 'invalid',
+        isLegacy: false,
+        isChecksumValid: false,
+        ownedMap: {},
+        ownedCount: 0,
+        unmappedCount: 0,
+        errorMessage: '未対応の進捗コードバージョンです。',
+      };
+    }
+
+    const revision = (bytes[1] << 8) | bytes[2];
+    const bitCount = (bytes[3] << 8) | bytes[4];
+    const bitByteLen = Math.ceil(bitCount / 8);
+    const expectedTotalBytes = B2_HEADER_BYTES + bitByteLen + B2_CHECKSUM_BYTES;
+
+    if (bytes.length !== expectedTotalBytes) {
+      return {
+        ok: false,
+        format: 'invalid',
+        isLegacy: false,
+        isChecksumValid: false,
+        ownedMap: {},
+        ownedCount: 0,
+        unmappedCount: 0,
+        errorMessage:
+          '進捗コードまたはURLの長さが一致しません。末尾まで正しくコピーされているか確認してください。',
+      };
+    }
+
+    const expectedCrc = computeCrc16(bytes, B2_HEADER_BYTES + bitByteLen);
+    const actualCrc =
+      (bytes[B2_HEADER_BYTES + bitByteLen] << 8) | bytes[B2_HEADER_BYTES + bitByteLen + 1];
+
+    if (expectedCrc !== actualCrc) {
+      return {
+        ok: false,
+        format: 'invalid',
+        isLegacy: false,
+        isChecksumValid: false,
+        ownedMap: {},
+        ownedCount: 0,
+        unmappedCount: 0,
+        errorMessage:
+          'チェックサム検証に失敗しました。コードの一部が欠けているか書き換わっている可能性があります。',
+      };
+    }
+
+    const revSnapshot = snapshots.revisions[String(revision)];
+    const unknownRevision = !revSnapshot;
+    const ownedMap: Record<string, boolean> = {};
+    let unmappedCount = 0;
+
+    for (let i = 0; i < bitCount; i++) {
+      const byteIdx = B2_HEADER_BYTES + (i >> 3);
+      const bitIdx = i & 7;
+      if ((bytes[byteIdx] & (1 << bitIdx)) !== 0) {
+        const rawId =
+          revSnapshot?.ids && revSnapshot.ids[i]
+            ? revSnapshot.ids[i]
+            : records[i]?.id ?? `rec_${i + 1}`;
+        const resolvedId = revSnapshot?.idAliases?.[rawId] ?? rawId;
+        if (validIdSet.has(resolvedId)) {
+          ownedMap[resolvedId] = true;
+        } else {
+          unmappedCount++;
+        }
+      }
+    }
+
+    const ownedCount = Object.keys(ownedMap).length;
+    return {
+      ok: true,
+      format: 'b2',
+      isLegacy: false,
+      isChecksumValid: true,
+      dataRevision: revision,
+      dataLabel: revSnapshot?.label ?? `r${revision}`,
+      sourceRecordCount: bitCount,
+      unknownRevision,
+      ownedMap,
+      ownedCount,
+      unmappedCount,
+    };
+  }
+
+  // 2. 旧形式: b1_ (チェックサムなし BitSet)
+  if (token.startsWith('b1_')) {
+    const bytes = base64UrlToBytes(token.slice(3));
+    if (!bytes || bytes.length === 0) {
+      return {
+        ok: false,
+        format: 'invalid',
+        isLegacy: true,
+        isChecksumValid: false,
+        ownedMap: {},
+        ownedCount: 0,
+        unmappedCount: 0,
+        errorMessage: '旧形式の進捗コードが破損しています。',
+      };
+    }
+
+    const ownedMap: Record<string, boolean> = {};
+    let unmappedCount = 0;
+
+    for (let byteIdx = 0; byteIdx < bytes.length; byteIdx++) {
+      const byteVal = bytes[byteIdx];
+      for (let bitIdx = 0; bitIdx < 8; bitIdx++) {
+        if ((byteVal & (1 << bitIdx)) !== 0) {
+          const order = byteIdx * 8 + bitIdx + 1;
+          const id = `rec_${order}`;
+          if (validIdSet.has(id)) {
+            ownedMap[id] = true;
+          } else {
+            unmappedCount++;
           }
         }
       }
-      return map;
-    } catch {
-      return {};
     }
+
+    const ownedCount = Object.keys(ownedMap).length;
+    return {
+      ok: true,
+      format: 'b1',
+      isLegacy: true,
+      isChecksumValid: false,
+      ownedMap,
+      ownedCount,
+      unmappedCount,
+    };
   }
 
-  // 旧形式: JSON配列のBase64エンコード（後方互換性）
+  // 3. 旧形式: JSON配列のBase64エンコード
   try {
-    const decoded = decodeURIComponent(atob(trimmed));
-    const list: string[] = JSON.parse(decoded);
-    const map: Record<string, boolean> = {};
+    const decoded = decodeURIComponent(atob(token));
+    const list: unknown = JSON.parse(decoded);
     if (Array.isArray(list)) {
+      const ownedMap: Record<string, boolean> = {};
+      let unmappedCount = 0;
       list.forEach((id) => {
         if (typeof id === 'string') {
-          map[id] = true;
+          if (validIdSet.has(id)) {
+            ownedMap[id] = true;
+          } else {
+            unmappedCount++;
+          }
         }
       });
+      return {
+        ok: true,
+        format: 'legacy_json',
+        isLegacy: true,
+        isChecksumValid: false,
+        ownedMap,
+        ownedCount: Object.keys(ownedMap).length,
+        unmappedCount,
+      };
     }
-    return map;
   } catch {
-    return {};
+    // ignore
   }
+
+  return {
+    ok: false,
+    format: 'invalid',
+    isLegacy: false,
+    isChecksumValid: false,
+    ownedMap: {},
+    ownedCount: 0,
+    unmappedCount: 0,
+    errorMessage: 'コードの形式が無効です。正しい進捗コードまたは共有URLを入力してください。',
+  };
+};
+
+/**
+ * 共有文字列（b2_ / b1_ / 旧形式JSON Base64）から所持マップを復元する
+ */
+export const decodeShareData = (shareString: string): Record<string, boolean> => {
+  const parsed = parseShareData(shareString);
+  return parsed.ok ? parsed.ownedMap : {};
 };
 
 /**

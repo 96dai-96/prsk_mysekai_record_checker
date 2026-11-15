@@ -5,10 +5,14 @@ import {
   filterAndSortRecords,
   encodeShareData,
   decodeShareData,
+  parseShareData,
+  extractShareToken,
   checkRecordMatchesCustomCondition,
+  type DataSnapshotsConfig,
 } from './recordUtils';
 import type { RecordItem, FilterOptions, SavedCompareCondition } from '../types/record';
 import { getJacketIndexForTrack } from '../types/record';
+import { buildNextDataSnapshots } from '../../scripts/snapshotUpdater.mjs';
 
 const mockItems: RecordItem[] = [
   {
@@ -506,12 +510,20 @@ describe('filterAndSortRecords', () => {
   });
 });
 
-describe('encodeShareData / decodeShareData', () => {
-  it('所持状態を可逆的にエンコード・デコードできる（BitSet b1_ 形式）', () => {
+describe('encodeShareData / decodeShareData / parseShareData', () => {
+  it('所持状態を新形式（b2_: データラベル・CRC-16チェックサム付き）で可逆的にエンコード・デコードできる', () => {
     const original = { rec_1: true, rec_3: true, rec_731: true };
-    const encoded = encodeShareData(original, 731);
+    const encoded = encodeShareData(original, 733);
     expect(typeof encoded).toBe('string');
-    expect(encoded.startsWith('b1_')).toBe(true);
+    expect(encoded.startsWith('b2_')).toBe(true);
+
+    const parsed = parseShareData(encoded);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.format).toBe('b2');
+    expect(parsed.isLegacy).toBe(false);
+    expect(parsed.isChecksumValid).toBe(true);
+    expect(parsed.dataRevision).toBeGreaterThanOrEqual(1);
+    expect(parsed.ownedCount).toBe(3);
 
     const decoded = decodeShareData(encoded);
     expect(decoded.rec_1).toBe(true);
@@ -520,27 +532,171 @@ describe('encodeShareData / decodeShareData', () => {
     expect(decoded.rec_2).toBeUndefined();
   });
 
-  it('旧形式（JSON Base64）の共有データも後方互換性でデコードできる', () => {
+  it('0曲所持（すべて未所持）の状態もチェックサム検証付きの有効データとして復元判定できる', () => {
+    const encoded = encodeShareData({}, 733);
+    expect(encoded.startsWith('b2_')).toBe(true);
+
+    const parsed = parseShareData(encoded);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.format).toBe('b2');
+    expect(parsed.isChecksumValid).toBe(true);
+    expect(parsed.ownedCount).toBe(0);
+    expect(parsed.ownedMap).toEqual({});
+  });
+
+  it('コードの末尾欠損や改ざん（チェックサム不一致）を確実に検知してエラーにする', () => {
+    const encoded = encodeShareData({ rec_1: true, rec_10: true }, 20);
+
+    // 末尾1文字欠損
+    const truncated = encoded.slice(0, -1);
+    const parsedTruncated = parseShareData(truncated);
+    expect(parsedTruncated.ok).toBe(false);
+    expect(parsedTruncated.isChecksumValid).toBe(false);
+    expect(parsedTruncated.ownedMap).toEqual({});
+
+    // データ部の1文字書き換え（パディング余りビットではなく実バイトが変化する位置）
+    const targetIdx = 6;
+    const origChar = encoded[targetIdx];
+    const tampered =
+      encoded.slice(0, targetIdx) +
+      (origChar === 'A' ? 'B' : 'A') +
+      encoded.slice(targetIdx + 1);
+    const parsedTampered = parseShareData(tampered);
+    expect(parsedTampered.ok).toBe(false);
+    expect(parsedTampered.isChecksumValid).toBe(false);
+  });
+
+  it('データ構成が変わっても過去リビジョンのラベル・スナップショットから正しく復元できる', () => {
+    const v1Records: RecordItem[] = [
+      { ...mockItems[0], id: 'rec_1' },
+      { ...mockItems[1], id: 'rec_2' },
+      { ...mockItems[2], id: 'rec_3' },
+    ];
+    // v2 で rec_2 が削除・並び順変更され、rec_3 が rec_3_new に改名された想定
+    const v2Records: RecordItem[] = [
+      { ...mockItems[2], id: 'rec_3_new' },
+      { ...mockItems[0], id: 'rec_1' },
+    ];
+    const snapshotsV1: DataSnapshotsConfig = {
+      currentRevision: 1,
+      revisions: {
+        '1': { label: '2026.11.14-r1', updatedAt: '2026-11-14', recordCount: 3 },
+      },
+    };
+    const snapshotsV2: DataSnapshotsConfig = {
+      currentRevision: 2,
+      revisions: {
+        '1': {
+          label: '2026.11.14-r1',
+          updatedAt: '2026-11-14',
+          recordCount: 3,
+          ids: ['rec_1', 'rec_2', 'rec_3'],
+          idAliases: { rec_3: 'rec_3_new' },
+        },
+        '2': { label: '2026.11.15-r2', updatedAt: '2026-11-15', recordCount: 2 },
+      },
+    };
+
+    // v1 時点で rec_1 と rec_3 を所持したコードを発行
+    const v1Code = encodeShareData(
+      { rec_1: true, rec_3: true },
+      { records: v1Records, snapshots: snapshotsV1 }
+    );
+
+    // v2 構成のアプリで v1Code をデコードしても、正しく rec_1 と rec_3_new に復元される
+    const parsedInV2 = parseShareData(v1Code, {
+      records: v2Records,
+      snapshots: snapshotsV2,
+    });
+    expect(parsedInV2.ok).toBe(true);
+    expect(parsedInV2.dataRevision).toBe(1);
+    expect(parsedInV2.dataLabel).toBe('2026.11.14-r1');
+    expect(parsedInV2.ownedMap).toEqual({ rec_1: true, rec_3_new: true });
+  });
+
+  it('旧形式（b1_ BitSet / JSON Base64）は後方互換で読み込め、isLegacy=true として警告対象になる', () => {
+    // 旧 b1_ 形式 (rec_1, rec_3 のみビットON -> byte0 = 0b00000101 = 5 -> Base64URL "BQ")
+    const parsedB1 = parseShareData('b1_BQ');
+    expect(parsedB1.ok).toBe(true);
+    expect(parsedB1.format).toBe('b1');
+    expect(parsedB1.isLegacy).toBe(true);
+    expect(parsedB1.isChecksumValid).toBe(false);
+    expect(parsedB1.ownedMap).toEqual({ rec_1: true, rec_3: true });
+
+    // 旧 JSON Base64 形式
     const oldJson = JSON.stringify(['rec_2', 'rec_4']);
     const oldBase64 = btoa(encodeURIComponent(oldJson));
-
-    const decoded = decodeShareData(oldBase64);
-    expect(decoded.rec_2).toBe(true);
-    expect(decoded.rec_4).toBe(true);
-    expect(decoded.rec_1).toBeUndefined();
+    const parsedJson = parseShareData(oldBase64);
+    expect(parsedJson.ok).toBe(true);
+    expect(parsedJson.format).toBe('legacy_json');
+    expect(parsedJson.isLegacy).toBe(true);
+    expect(parsedJson.ownedMap).toEqual({ rec_2: true, rec_4: true });
   });
 
-  it('空の所持状態を安全にエンコード・デコードできる', () => {
-    const encoded = encodeShareData({}, 10);
-    const decoded = decodeShareData(encoded);
-    expect(decoded).toEqual({});
+  it('URL全体から共有トークンを抽出できる', () => {
+    expect(extractShareToken('https://example.com/?share=b2_ABC123')).toBe('b2_ABC123');
+    expect(extractShareToken('b2_ABC123')).toBe('b2_ABC123');
   });
 
-  it('不正な共有文字列が与えられた場合は空オブジェクトを安全に返す', () => {
+  it('不正な共有文字列が与えられた場合はエラー結果を安全に返す', () => {
     const decoded = decodeShareData('invalid_base64_string_%%%');
     expect(decoded).toEqual({});
     const decodedB1 = decodeShareData('b1_!!!not_valid_b64!!!');
     expect(decodedB1).toEqual({});
+    const parsedB2 = parseShareData('b2_!!!not_valid_b64!!!');
+    expect(parsedB2.ok).toBe(false);
+  });
+
+  it('buildNextDataSnapshots による複数回の楽曲削除・ID振り直しでも過去コードから正確に復元でき、削除曲は別曲に化けない', () => {
+    const r1Records: RecordItem[] = [
+      { ...mockItems[0], id: 'rec_1', title: '曲A' },
+      { ...mockItems[1], id: 'rec_2', title: '曲B' },
+      { ...mockItems[2], id: 'rec_3', title: '曲C' },
+    ];
+    let snapshots: DataSnapshotsConfig = {
+      currentRevision: 1,
+      revisions: {
+        '1': { label: '2026.11.14-r1', updatedAt: '2026-11-14', recordCount: 3 },
+      },
+    };
+
+    // r1時点で 曲B(rec_2) と 曲C(rec_3) を所持したコードを発行
+    const r1Code = encodeShareData(
+      { rec_2: true, rec_3: true },
+      { records: r1Records, snapshots }
+    );
+
+    // r2: 曲B を削除し、連番を詰め直し（曲C が rec_2 になる）
+    const r2Records: RecordItem[] = [
+      { ...mockItems[0], id: 'rec_1', title: '曲A' },
+      { ...mockItems[2], id: 'rec_2', title: '曲C' },
+    ];
+    snapshots = buildNextDataSnapshots(snapshots, r1Records, r2Records, {
+      jstDateDot: '2026.11.15',
+      jstDateDash: '2026-11-15',
+    });
+
+    // r2時点で 曲C(rec_2) のみ所持したコードを発行
+    const r2Code = encodeShareData({ rec_2: true }, { records: r2Records, snapshots });
+
+    // r3: さらに 曲A を削除し、連番を詰め直し（曲C が rec_1 になる）
+    const r3Records: RecordItem[] = [{ ...mockItems[2], id: 'rec_1', title: '曲C' }];
+    snapshots = buildNextDataSnapshots(snapshots, r2Records, r3Records, {
+      jstDateDot: '2026.11.16',
+      jstDateDash: '2026-11-16',
+    });
+
+    // r1コード（曲Bと曲C）を r3 で復元 → 削除された曲Bは除外され、曲C(rec_1) だけがONになる
+    const parsedFromR1 = parseShareData(r1Code, { records: r3Records, snapshots });
+    expect(parsedFromR1.ok).toBe(true);
+    expect(parsedFromR1.ownedMap).toEqual({ rec_1: true });
+    expect(parsedFromR1.unmappedCount).toBe(1);
+
+    // r2コード（曲C）を r3 で復元 → 曲C(rec_1) がONになる
+    const parsedFromR2 = parseShareData(r2Code, { records: r3Records, snapshots });
+    expect(parsedFromR2.ok).toBe(true);
+    expect(parsedFromR2.ownedMap).toEqual({ rec_1: true });
+    expect(parsedFromR2.unmappedCount).toBe(0);
   });
 
   describe('getJacketIndexForTrack の連動テスト', () => {

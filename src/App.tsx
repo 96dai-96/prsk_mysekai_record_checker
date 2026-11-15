@@ -4,8 +4,9 @@ import { Header, type TabType } from './components/Header';
 import { ListView } from './components/ListView';
 import { ComparisonView } from './components/ComparisonView';
 import { MenuView } from './components/MenuView';
+import { ShareRestoreModal } from './components/ShareRestoreModal';
 import { MOCK_RECORDS } from './data/mockRecords';
-import { decodeShareData } from './utils/recordUtils';
+import { parseShareData, type ParsedShareData } from './utils/recordUtils';
 import type { DisplaySettings, FilterOptions, SortSettings } from './types/record';
 
 const STORAGE_KEY = 'mysekai_owned_record_ids_v1';
@@ -116,23 +117,8 @@ export const App: React.FC = () => {
     }
   }, [sortSettings]);
 
-  // 所持状態管理（localStorage + URL共有デコード）
+  // 所持状態管理（localStorage からのみ復元し、URL共有パラメータは確認モーダル経由で適用）
   const [ownedRecordIds, setOwnedRecordIds] = useState<Record<string, boolean>>(() => {
-    // 1. URL共有パラメータがあるか確認（BitSetおよび旧形式両対応）
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const shareData = params.get('share');
-      if (shareData) {
-        const decoded = decodeShareData(shareData);
-        if (Object.keys(decoded).length > 0) {
-          return decoded;
-        }
-      }
-    } catch {
-      // ignore
-    }
-
-    // 2. localStorage から復元
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
@@ -142,11 +128,55 @@ export const App: React.FC = () => {
       // ignore
     }
 
-    // 3. 初期プリセット（Ready Steady のみ所持状態に）
+    // 初期プリセット（Ready Steady のみ所持状態に）
     return {
       rec_24: true, // Ready Steady
     };
   });
+
+  // 共有URL (?share=...) からの復元確認待ちデータ
+  const [pendingUrlShare, setPendingUrlShare] = useState<ParsedShareData | null>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const shareData = params.get('share');
+      if (shareData) {
+        return parseShareData(shareData, { records: MOCK_RECORDS });
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  });
+
+  // URLから ?share パラメータを安全に取り除く
+  const clearShareUrlParam = () => {
+    try {
+      const url = new URL(window.location.href);
+      if (url.searchParams.has('share')) {
+        url.searchParams.delete('share');
+        const nextSearch = url.searchParams.toString();
+        const cleanUrl = `${url.pathname}${nextSearch ? `?${nextSearch}` : ''}${url.hash}`;
+        window.history.replaceState({}, '', cleanUrl);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  // 共有URL復元モーダルの承認
+  const handleConfirmUrlShare = () => {
+    if (pendingUrlShare && pendingUrlShare.ok) {
+      setOwnedRecordIds(pendingUrlShare.ownedMap);
+    }
+    setPendingUrlShare(null);
+    clearShareUrlParam();
+  };
+
+  // 共有URL復元モーダルのキャンセル
+  const handleCancelUrlShare = () => {
+    setPendingUrlShare(null);
+    clearShareUrlParam();
+  };
 
   // localStorage への自動永続化
   useEffect(() => {
@@ -237,6 +267,16 @@ export const App: React.FC = () => {
           </p>
         </div>
       </footer>
+      {/* 共有URLからの復元確認モーダル */}
+      <ShareRestoreModal
+        parsed={pendingUrlShare}
+        currentOwnedCount={ownedTotalCount}
+        totalCount={MOCK_RECORDS.length}
+        source="url"
+        onConfirm={handleConfirmUrlShare}
+        onCancel={handleCancelUrlShare}
+      />
+
       {/* Vercel Web Analytics 計測コンポーネント */}
       <Analytics />
     </div>

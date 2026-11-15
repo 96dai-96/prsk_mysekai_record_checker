@@ -2,12 +2,14 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { fork } from 'child_process';
+import { buildNextDataSnapshots } from './snapshotUpdater.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const ALL_RECORDS_PATH = path.join(__dirname, '..', 'src', 'data', 'allRecords.ts');
 const CHANGELOG_PATH = path.join(__dirname, '..', 'src', 'data', 'dataChangelog.json');
+const SNAPSHOTS_PATH = path.join(__dirname, '..', 'src', 'data', 'dataSnapshots.json');
 const SUMMARY_MD_PATH = path.join(__dirname, '.update_summary.md');
 const DISCORD_PAYLOAD_PATH = path.join(__dirname, '.discord_summary.json');
 const GITHUB_OUTPUT_PATH = process.env.GITHUB_OUTPUT;
@@ -278,6 +280,23 @@ async function main() {
     }
     fs.writeFileSync(CHANGELOG_PATH, JSON.stringify(changelog, null, 2) + '\n', 'utf8');
     console.log(`✔ 更新履歴 (${CHANGELOG_PATH}) に ${jstDateDot} の項目を追記しました。`);
+  }
+
+  // 5.5. データ世代ラベル (src/data/dataSnapshots.json) の自動更新
+  {
+    let snapshots = { currentRevision: 0, revisions: {} };
+    if (fs.existsSync(SNAPSHOTS_PATH)) {
+      snapshots = JSON.parse(fs.readFileSync(SNAPSHOTS_PATH, 'utf8'));
+    }
+
+    const nextSnapshots = buildNextDataSnapshots(snapshots, oldRecords, newRecords, {
+      jstDateDot,
+      jstDateDash,
+    });
+    const nextLabel = nextSnapshots.revisions[String(nextSnapshots.currentRevision)].label;
+
+    fs.writeFileSync(SNAPSHOTS_PATH, JSON.stringify(nextSnapshots, null, 2) + '\n', 'utf8');
+    console.log(`✔ データ世代ラベル (${SNAPSHOTS_PATH}) を ${nextLabel} に更新しました。`);
   }
 
   // 6. 開発者通知用サマリー（GitHub Issue / Discord Webhook）の生成

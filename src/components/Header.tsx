@@ -369,9 +369,9 @@ export const Header: React.FC<HeaderProps> = ({
                       <span>進捗の保存・引き継ぎ</span>
                     </div>
                     <div className="text-slate-600 text-xs pl-2.5 sm:pl-3.5 space-y-1 leading-relaxed">
-                      <p>・<strong className="text-slate-700">共有URLコピー</strong>: 現在の所持チェック状態を含んだ専用のURLをコピーします。スマートフォンのブックマークに保存したり、別の端末に送って開くことでデータを引き継げます。</p>
-                      <p>・<strong className="text-slate-700">進捗コードコピー</strong>: 短い文字のコードを発行します。</p>
-                      <p>・<strong className="text-slate-700">コードやURLから復元</strong>: 発行された進捗コードまたはURLを貼り付けることで、いつでもチェック状態を復元できます。</p>
+                      <p>・<strong className="text-slate-700">共有URLコピー</strong>: 現在の所持チェック状態を含んだ専用のURLをコピーします。スマートフォンのブックマークに保存したり、別の端末に送って開くことでデータを引き継げます（開いた際に確認画面が表示されます）。</p>
+                      <p>・<strong className="text-slate-700">進捗コードコピー</strong>: 現在のチェック状態を引き継ぐための短いコードを発行します。</p>
+                      <p>・<strong className="text-slate-700">コード / URLから更新</strong>: 発行された進捗コードまたはURLを貼り付け、確認画面で内容を確認したうえでチェック状態を更新できます。</p>
                     </div>
                   </div>
 

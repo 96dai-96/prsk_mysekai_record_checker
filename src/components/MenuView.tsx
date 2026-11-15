@@ -19,8 +19,13 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import type { RecordItem, DisplaySettings } from '../types/record';
-import { encodeShareData, decodeShareData } from '../utils/recordUtils';
+import {
+  encodeShareData,
+  parseShareData,
+  type ParsedShareData,
+} from '../utils/recordUtils';
 import { useBodyScrollLock } from '../utils/useBodyScrollLock';
+import { ShareRestoreModal } from './ShareRestoreModal';
 import dataChangelog from '../data/dataChangelog.json';
 
 interface DataChangelogItem {
@@ -55,6 +60,7 @@ export const MenuView: React.FC<MenuViewProps> = ({
   const [copiedShareCode, setCopiedShareCode] = useState(false);
   const [showCodeRestoreDialog, setShowCodeRestoreDialog] = useState(false);
   const [shareCodeInput, setShareCodeInput] = useState('');
+  const [pendingRestoreData, setPendingRestoreData] = useState<ParsedShareData | null>(null);
 
   // 一括操作モーダル用State
   const [batchModalTarget, setBatchModalTarget] = useState<'all_owned' | 'all_clear' | null>(null);
@@ -164,10 +170,10 @@ export const MenuView: React.FC<MenuViewProps> = ({
     }
   };
 
-  // サーバーレス・ゼロコスト共有URL生成（BitSet Base64URL 圧縮: 約122文字）
+  // サーバーレス・ゼロコスト共有URL生成（b2_ チェックサム・データラベル付き BitSet Base64URL）
   const handleGenerateShareUrl = () => {
     try {
-      const code = encodeShareData(ownedRecordIds, records.length);
+      const code = encodeShareData(ownedRecordIds, records);
       const url = `${window.location.origin}${window.location.pathname}?share=${code}`;
       navigator.clipboard.writeText(url);
       setCopiedShareUrl(true);
@@ -177,10 +183,10 @@ export const MenuView: React.FC<MenuViewProps> = ({
     }
   };
 
-  // 進捗コード（英数字のみ）のコピー
+  // 進捗コード（英数字・記号のみ）のコピー
   const handleCopyShareCode = () => {
     try {
-      const code = encodeShareData(ownedRecordIds, records.length);
+      const code = encodeShareData(ownedRecordIds, records);
       navigator.clipboard.writeText(code);
       setCopiedShareCode(true);
       setTimeout(() => setCopiedShareCode(false), 2500);
@@ -189,33 +195,47 @@ export const MenuView: React.FC<MenuViewProps> = ({
     }
   };
 
-  // 共有コードまたは共有URLからの復元実行
+  // 共有コードまたは共有URLを解析し、確認モーダル（旧形式警告含む）を表示
   const handleApplyShareCode = () => {
     try {
-      let rawCode = shareCodeInput.trim();
-      if (rawCode.includes('share=')) {
-        try {
-          const urlObj = new URL(rawCode);
-          rawCode = urlObj.searchParams.get('share') || rawCode;
-        } catch {
-          const match = rawCode.match(/share=([A-Za-z0-9_-]+)/);
-          if (match) rawCode = match[1];
-        }
+      const parsed = parseShareData(shareCodeInput, { records });
+
+      // 旧形式かつ0件の場合はチェックサムがなく空データと区別できないためエラー扱い
+      if (parsed.ok && parsed.isLegacy && parsed.ownedCount === 0) {
+        setShowCodeRestoreDialog(false);
+        setPendingRestoreData({
+          ...parsed,
+          ok: false,
+          format: 'invalid',
+          errorMessage:
+            '旧形式のコードが無効またはデータが空です。正しいコードを入力してください。',
+        });
+        return;
       }
 
-      const decoded = decodeShareData(rawCode);
-      const keys = Object.keys(decoded);
-      if (keys.length > 0) {
-        onImportData(decoded);
-        setShowCodeRestoreDialog(false);
-        setShareCodeInput('');
-        alert(`進捗データを復元しました！（所持曲数: ${keys.length}曲）`);
-      } else {
-        alert('コードの形式が無効またはデータが空です。正しいコードを入力してください。');
-      }
+      setShowCodeRestoreDialog(false);
+      setPendingRestoreData(parsed);
     } catch {
       alert('進捗コードの解析に失敗しました。');
     }
+  };
+
+  // 確認モーダル承認後のデータ復元実行（Undoバックアップ付き）
+  const handleConfirmCodeRestore = () => {
+    if (!pendingRestoreData || !pendingRestoreData.ok) {
+      setPendingRestoreData(null);
+      return;
+    }
+
+    setUndoBackup({ ...ownedRecordIds });
+    if (undoTimeoutRef.current) clearTimeout(undoTimeoutRef.current);
+    undoTimeoutRef.current = setTimeout(() => {
+      setUndoBackup(null);
+    }, 10000);
+
+    onImportData(pendingRestoreData.ownedMap);
+    setPendingRestoreData(null);
+    setShareCodeInput('');
   };
 
   // 一括操作実行（安全なカスタムモーダル承認後）
@@ -310,13 +330,13 @@ export const MenuView: React.FC<MenuViewProps> = ({
             )}
           </button>
 
-          {/* コードから復元ボタン */}
+          {/* コードから更新ボタン */}
           <button
             onClick={() => setShowCodeRestoreDialog(true)}
             className="px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-2xs border border-slate-200 cursor-pointer active:scale-95"
           >
             <Sparkles className="w-4 h-4 text-[#33ccbb]" />
-            <span>コード / URLから復元</span>
+            <span>コード / URLから更新</span>
           </button>
         </div>
       </div>
@@ -462,6 +482,31 @@ export const MenuView: React.FC<MenuViewProps> = ({
         </div>
 
         <div className="pt-1 text-xs text-slate-600 border-l-2 border-slate-200 ml-3 pl-4 space-y-6">
+          {/* 2026.11.15 */}
+          <div className="relative">
+            <span className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-amber-400 ring-4 ring-white" />
+            <div className="flex items-center gap-2 mb-2">
+              <span className="font-bold font-mono text-slate-800 text-sm">2026.11.15</span>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700">
+                <AlertTriangle className="w-2.5 h-2.5" />
+                <span>不具合修正</span>
+              </span>
+            </div>
+            <ul className="space-y-1.5 text-[11px] sm:text-xs text-slate-600 leading-relaxed pl-1">
+              <li className="flex items-start gap-1.5">
+                <span className="text-slate-400 select-none">-</span>
+                <span>
+                  <strong className="text-slate-700 font-semibold">[データ管理] 進捗の共有・引継ぎが正常に行われない可能性がある問題の修正</strong>
+                  （チェック状態を保護するための確認画面やコード検証機能を追加しました。
+                  <span className="text-amber-700 font-medium">
+                    ※今回の更新以前に発行された進捗コードや共有URLでは、進捗の共有・引継ぎが正常に完了しない可能性があります
+                  </span>
+                  ）
+                </span>
+              </li>
+            </ul>
+          </div>
+
           {/* 2026.11.14 */}
           <div className="relative">
             <span className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-[#33ccbb] ring-4 ring-white" />
@@ -837,16 +882,16 @@ export const MenuView: React.FC<MenuViewProps> = ({
             >
               <h4 className="font-bold text-slate-800 mb-2 flex items-center gap-2">
                 <KeyRound className="w-4 h-4 text-[#33ccbb]" />
-                <span>進捗コード / URL から復元</span>
+                <span>進捗コード / URL から更新</span>
               </h4>
               <p className="text-xs text-slate-500 mb-3">
-                コピーした進捗コード（例: <code className="text-[11px] font-mono bg-slate-100 px-1 py-0.5 rounded">b1_...</code>）または共有URLを貼り付けてください。現在のチェック状態が上書き復元されます。
+                コピーした進捗コード（例: <code className="text-[11px] font-mono bg-slate-100 px-1 py-0.5 rounded">b2_...</code>）または共有URLを貼り付けてください。内容を確認したうえでチェック状態を更新します。
               </p>
               <textarea
                 rows={4}
                 value={shareCodeInput}
                 onChange={(e) => setShareCodeInput(e.target.value)}
-                placeholder="b1_Ab9_xK3... または https://.../?share=b1_..."
+                placeholder="b2_... または https://.../?share=b2_..."
                 className="w-full text-xs font-mono p-3 border border-slate-200 rounded-xl focus:border-[#33ccbb] focus:ring-2 focus:ring-[#33ccbb]/20 focus:outline-hidden"
               />
               <div className="mt-4 flex justify-end gap-2">
@@ -863,13 +908,23 @@ export const MenuView: React.FC<MenuViewProps> = ({
                   onClick={handleApplyShareCode}
                   className="px-4 py-2 text-xs font-bold bg-[#33ccbb] hover:bg-[#2cb3a5] text-white rounded-xl shadow-xs transition-colors cursor-pointer"
                 >
-                  復元を実行
+                  読み込む
                 </button>
               </div>
             </div>
           </div>,
           document.body
         )}
+
+      {/* 進捗コード復元時の確認・旧形式警告モーダル */}
+      <ShareRestoreModal
+        parsed={pendingRestoreData}
+        currentOwnedCount={currentOwnedCount}
+        totalCount={records.length}
+        source="code"
+        onConfirm={handleConfirmCodeRestore}
+        onCancel={() => setPendingRestoreData(null)}
+      />
 
       {/* 一括操作のカスタム確認モーダル（新設） */}
       {batchModalTarget &&

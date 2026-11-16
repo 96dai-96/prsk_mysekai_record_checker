@@ -482,203 +482,234 @@ export const MenuView: React.FC<MenuViewProps> = ({
         </div>
 
         <div className="pt-1 text-xs text-slate-600 border-l-2 border-slate-200 ml-3 pl-4 space-y-6">
-          {/* 2026.11.15 */}
-          <div className="relative">
-            <span className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-amber-400 ring-4 ring-white" />
-            <div className="flex items-center gap-2 mb-2">
-              <span className="font-bold font-mono text-slate-800 text-sm">2026.11.15</span>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700">
-                <AlertTriangle className="w-2.5 h-2.5" />
-                <span>不具合修正</span>
-              </span>
-            </div>
-            <ul className="space-y-1.5 text-[11px] sm:text-xs text-slate-600 leading-relaxed pl-1">
-              <li className="flex items-start gap-1.5">
-                <span className="text-slate-400 select-none">-</span>
-                <span>
-                  <strong className="text-slate-700 font-semibold">[データ管理] 進捗の共有・引継ぎが正常に行われない可能性がある問題の修正</strong>
-                  （チェック状態を保護するための確認画面やコード検証機能を追加しました。
-                  <span className="text-amber-700 font-medium">
-                    ※今回の更新以前に発行された進捗コードや共有URLでは、進捗の共有・引継ぎが正常に完了しない可能性があります
-                  </span>
-                  ）
-                </span>
-              </li>
-            </ul>
-          </div>
+          {(() => {
+            const dataByDate = new Map<string, DataChangelogEntry>(
+              (dataChangelog as DataChangelogEntry[]).map((e) => [e.date, e])
+            );
 
-          {/* 2026.11.14 */}
-          <div className="relative">
-            <span className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-[#33ccbb] ring-4 ring-white" />
-            <div className="flex items-center gap-2 mb-2">
-              <span className="font-bold font-mono text-slate-800 text-sm">2026.11.14</span>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#33ccbb]/15 text-[#22998c]">
-                <Sparkles className="w-2.5 h-2.5" />
-                <span>新機能</span>
-              </span>
-            </div>
-            <ul className="space-y-1.5 text-[11px] sm:text-xs text-slate-600 leading-relaxed pl-1">
-              <li className="flex items-start gap-1.5">
-                <span className="text-slate-400 select-none">-</span>
-                <span>
-                  <strong className="text-slate-700 font-semibold">[メニュー] お問い合わせフォームを追加</strong>（ご意見・ご要望フォームおよび不具合・バグ報告フォームから直接開発者へ送信できるようになりました）
-                </span>
-              </li>
-            </ul>
-          </div>
-
-          {/* 自動更新されたデータ更新履歴 */}
-          {(dataChangelog as DataChangelogEntry[]).map((entry) => (
-            <div key={entry.date} className="relative">
-              <div className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-sky-400 border-2 border-white ring-2 ring-sky-400/20" />
-              <div className="flex items-center gap-2 mb-1.5">
-                <span className="text-[12px] font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
-                  {entry.date}
-                </span>
-              </div>
-              <div className="font-bold text-slate-800 text-xs sm:text-sm mb-2 flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-sky-500 inline-block"></span>
-                <span>データ更新</span>
-              </div>
-              <ul className="space-y-2 text-[11px] sm:text-xs text-slate-600 leading-relaxed pl-2">
-                {entry.items.map((item, idx) => {
-                  if (typeof item === 'string') {
-                    return (
-                      <li key={idx} className="flex items-start gap-1.5">
+            const appByDate = new Map<string, () => React.ReactNode>([
+              [
+                '2026.11.15',
+                () => (
+                  <div className="relative">
+                    <span className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-amber-400 ring-4 ring-white" />
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="font-bold font-mono text-slate-800 text-sm">2026.11.15</span>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700">
+                        <AlertTriangle className="w-2.5 h-2.5" />
+                        <span>不具合修正</span>
+                      </span>
+                    </div>
+                    <ul className="space-y-1.5 text-[11px] sm:text-xs text-slate-600 leading-relaxed pl-1">
+                      <li className="flex items-start gap-1.5">
                         <span className="text-slate-400 select-none">-</span>
-                        <span>{item}</span>
-                      </li>
-                    );
-                  }
-                  const badgeStyle =
-                    item.category === 'new_song'
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                      : item.category === 'another_vocal'
-                      ? 'bg-purple-50 text-purple-700 border-purple-200'
-                      : item.category === 'connect_live'
-                      ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
-                      : 'bg-sky-50 text-sky-700 border-sky-200';
-                  return (
-                    <li key={idx} className="flex items-start gap-1.5">
-                      <span className="text-slate-400 select-none mt-0.5">-</span>
-                      <div className="space-x-1.5">
-                        <span
-                          className={`inline-block px-1.5 py-0.5 rounded border text-[10px] font-bold leading-none ${badgeStyle}`}
-                        >
-                          {item.label}
+                        <span>
+                          <strong className="text-slate-700 font-semibold">[データ管理] 進捗の共有・引継ぎが正常に行われない可能性がある問題の修正</strong>
+                          （チェック状態を保護するための確認画面やコード検証機能を追加しました。
+                          <span className="text-amber-700 font-medium">
+                            ※今回の更新以前に発行された進捗コードや共有URLでは、進捗の共有・引継ぎが正常に完了しない可能性があります
+                          </span>
+                          ）
                         </span>
-                        <span className="text-slate-700">{item.text}</span>
+                      </li>
+                    </ul>
+                  </div>
+                ),
+              ],
+              [
+                '2026.11.14',
+                () => (
+                  <div className="relative">
+                    <span className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-[#33ccbb] ring-4 ring-white" />
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="font-bold font-mono text-slate-800 text-sm">2026.11.14</span>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#33ccbb]/15 text-[#22998c]">
+                        <Sparkles className="w-2.5 h-2.5" />
+                        <span>新機能</span>
+                      </span>
+                    </div>
+                    <ul className="space-y-1.5 text-[11px] sm:text-xs text-slate-600 leading-relaxed pl-1">
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-slate-400 select-none">-</span>
+                        <span>
+                          <strong className="text-slate-700 font-semibold">[メニュー] お問い合わせフォームを追加</strong>（ご意見・ご要望フォームおよび不具合・バグ報告フォームから直接開発者へ送信できるようになりました）
+                        </span>
+                      </li>
+                    </ul>
+                  </div>
+                ),
+              ],
+              [
+                '2026.11.13',
+                () => (
+                  <div className="relative">
+                    <div className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-[#33ccbb] border-2 border-white ring-2 ring-[#33ccbb]/20" />
+
+                    {/* 日付ヘッダー */}
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <span className="text-[12px] font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">2026.11.13</span>
+                    </div>
+
+                    {/* 新機能見出し */}
+                    <div className="font-bold text-slate-800 text-xs sm:text-sm mb-2 flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
+                      <span>新機能</span>
+                    </div>
+
+                    {/* 箇条書きリスト */}
+                    <div className="space-y-3 text-[11px] sm:text-xs text-slate-600 leading-relaxed">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-slate-400 select-none">-</span>
+                        <span className="font-semibold text-slate-800">初期リリース</span>
                       </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))}
 
-          {/* 2026.11.13 */}
-          <div className="relative">
-            <div className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-[#33ccbb] border-2 border-white ring-2 ring-[#33ccbb]/20" />
-            
-            {/* 日付ヘッダー */}
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-[12px] font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">2026.11.13</span>
-            </div>
+                      {/* リスト表示 */}
+                      <div className="space-y-1.5 pt-0.5">
+                        <div className="font-bold text-slate-700 flex items-center gap-1.5 text-[11px]">
+                          <span className="w-1 h-3 bg-[#33ccbb] rounded-full inline-block" />
+                          <span>リスト表示</span>
+                        </div>
+                        <ul className="space-y-1.5 pl-2">
+                          <li className="flex items-start gap-1.5">
+                            <span className="text-slate-400 select-none">-</span>
+                            <span>
+                              <strong className="text-slate-700 font-semibold">[チェック] 所持・未所持チェック</strong>（ワンタップでレコードの所持状況を記録し達成率を表示。クイックチェックモードでチェックに特化）
+                            </span>
+                          </li>
+                          <li className="flex items-start gap-1.5">
+                            <span className="text-slate-400 select-none">-</span>
+                            <span>
+                              <strong className="text-slate-700 font-semibold">[並替・絞込] 多彩な検索・フィルター</strong>（ユニット、キャラクター、音源ver、書き下ろし種別、バナーキャラ等の詳細な絞り込みや五十音・実装日等の並べ替え）
+                            </span>
+                          </li>
+                          <li className="flex items-start gap-1.5">
+                            <span className="text-slate-400 select-none">-</span>
+                            <span>
+                              <strong className="text-slate-700 font-semibold">[楽曲詳細] 楽曲の詳細情報</strong>（ジャケット画像、収録verの詳細等）の確認
+                            </span>
+                          </li>
+                        </ul>
+                      </div>
 
-            {/* 新機能見出し */}
-            <div className="font-bold text-slate-800 text-xs sm:text-sm mb-2 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
-              <span>新機能</span>
-            </div>
+                      {/* 所持率比較 */}
+                      <div className="space-y-1.5 pt-0.5">
+                        <div className="font-bold text-slate-700 flex items-center gap-1.5 text-[11px]">
+                          <span className="w-1 h-3 bg-indigo-400 rounded-full inline-block" />
+                          <span>所持率比較</span>
+                        </div>
+                        <ul className="space-y-1.5 pl-2">
+                          <li className="flex items-start gap-1.5">
+                            <span className="text-slate-400 select-none">-</span>
+                            <span>
+                              <strong className="text-slate-700 font-semibold">[比較・集計] 達成率の比較機能</strong>（ユニット別、音源ver別、周年・年度別、キャラクター別の収集率グラフ表示や、自由な条件で集計できるカスタム比較）
+                            </span>
+                          </li>
+                        </ul>
+                      </div>
 
-            {/* 箇条書きリスト */}
-            <div className="space-y-3 text-[11px] sm:text-xs text-slate-600 leading-relaxed">
-              <div className="flex items-center gap-1.5">
-                <span className="text-slate-400 select-none">-</span>
-                <span className="font-semibold text-slate-800">初期リリース</span>
-              </div>
+                      {/* メニュー */}
+                      <div className="space-y-1.5 pt-0.5">
+                        <div className="font-bold text-slate-700 flex items-center gap-1.5 text-[11px]">
+                          <span className="w-1 h-3 bg-amber-400 rounded-full inline-block" />
+                          <span>メニュー</span>
+                        </div>
+                        <ul className="space-y-1.5 pl-2">
+                          <li className="flex items-start gap-1.5">
+                            <span className="text-slate-400 select-none">-</span>
+                            <span>
+                              <strong className="text-slate-700 font-semibold">[データ管理] 進捗保存・共有機能</strong>（URL共有および進捗コードによる端末間のデータ引き継ぎや、楽曲の全選択・全解除機能）
+                            </span>
+                          </li>
+                          <li className="flex items-start gap-1.5">
+                            <span className="text-slate-400 select-none">-</span>
+                            <span>
+                              <strong className="text-slate-700 font-semibold">[表示設定] リスト表示のカスタマイズ</strong>（ジャケット、実装日、実装順、歌唱バッジ等の表示・非表示切り替えやコンパクト表示対応）
+                            </span>
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
 
-              {/* リスト表示 */}
-              <div className="space-y-1.5 pt-0.5">
-                <div className="font-bold text-slate-700 flex items-center gap-1.5 text-[11px]">
-                  <span className="w-1 h-3 bg-[#33ccbb] rounded-full inline-block" />
-                  <span>リスト表示</span>
-                </div>
-                <ul className="space-y-1.5 pl-2">
-                  <li className="flex items-start gap-1.5">
-                    <span className="text-slate-400 select-none">-</span>
-                    <span>
-                      <strong className="text-slate-700 font-semibold">[チェック] 所持・未所持チェック</strong>（ワンタップでレコードの所持状況を記録し達成率を表示。クイックチェックモードでチェックに特化）
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-1.5">
-                    <span className="text-slate-400 select-none">-</span>
-                    <span>
-                      <strong className="text-slate-700 font-semibold">[並替・絞込] 多彩な検索・フィルター</strong>（ユニット、キャラクター、音源ver、書き下ろし種別、バナーキャラ等の詳細な絞り込みや五十音・実装日等の並べ替え）
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-1.5">
-                    <span className="text-slate-400 select-none">-</span>
-                    <span>
-                      <strong className="text-slate-700 font-semibold">[楽曲詳細] 楽曲の詳細情報</strong>（ジャケット画像、収録verの詳細等）の確認
-                    </span>
-                  </li>
-                </ul>
-              </div>
+                    {/* データ見出し */}
+                    <div className="font-bold text-slate-800 text-xs sm:text-sm mt-3.5 mb-2 flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-sky-500 inline-block"></span>
+                      <span>データ</span>
+                    </div>
 
-              {/* 所持率比較 */}
-              <div className="space-y-1.5 pt-0.5">
-                <div className="font-bold text-slate-700 flex items-center gap-1.5 text-[11px]">
-                  <span className="w-1 h-3 bg-indigo-400 rounded-full inline-block" />
-                  <span>所持率比較</span>
-                </div>
-                <ul className="space-y-1.5 pl-2">
-                  <li className="flex items-start gap-1.5">
-                    <span className="text-slate-400 select-none">-</span>
-                    <span>
-                      <strong className="text-slate-700 font-semibold">[比較・集計] 達成率の比較機能</strong>（ユニット別、音源ver別、周年・年度別、キャラクター別の収集率グラフ表示や、自由な条件で集計できるカスタム比較）
-                    </span>
-                  </li>
-                </ul>
-              </div>
+                    {/* データリスト */}
+                    <ul className="space-y-1.5 text-[11px] sm:text-xs text-slate-600 leading-relaxed">
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-slate-400 select-none">-</span>
+                        <span>2026.11.11までに追加された楽曲、楽曲バージョンの情報を反映</span>
+                      </li>
+                    </ul>
+                  </div>
+                ),
+              ],
+            ]);
 
-              {/* メニュー */}
-              <div className="space-y-1.5 pt-0.5">
-                <div className="font-bold text-slate-700 flex items-center gap-1.5 text-[11px]">
-                  <span className="w-1 h-3 bg-amber-400 rounded-full inline-block" />
-                  <span>メニュー</span>
-                </div>
-                <ul className="space-y-1.5 pl-2">
-                  <li className="flex items-start gap-1.5">
-                    <span className="text-slate-400 select-none">-</span>
-                    <span>
-                      <strong className="text-slate-700 font-semibold">[データ管理] 進捗保存・共有機能</strong>（URL共有および進捗コードによる端末間のデータ引き継ぎや、楽曲の全選択・全解除機能）
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-1.5">
-                    <span className="text-slate-400 select-none">-</span>
-                    <span>
-                      <strong className="text-slate-700 font-semibold">[表示設定] リスト表示のカスタマイズ</strong>（ジャケット、実装日、実装順、歌唱バッジ等の表示・非表示切り替えやコンパクト表示対応）
-                    </span>
-                  </li>
-                </ul>
-              </div>
-            </div>
+            // アプリ更新と自動データ更新を日付降順で統合表示
+            const allDates = Array.from(
+              new Set([...dataByDate.keys(), ...appByDate.keys()])
+            ).sort((a, b) => b.localeCompare(a));
 
-            {/* データ見出し */}
-            <div className="font-bold text-slate-800 text-xs sm:text-sm mt-3.5 mb-2 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-sky-500 inline-block"></span>
-              <span>データ</span>
-            </div>
-
-            {/* データリスト */}
-            <ul className="space-y-1.5 text-[11px] sm:text-xs text-slate-600 leading-relaxed">
-              <li className="flex items-start gap-1.5">
-                <span className="text-slate-400 select-none">-</span>
-                <span>2026.11.11までに追加された楽曲、楽曲バージョンの情報を反映</span>
-              </li>
-            </ul>
-          </div>
+            return allDates.map((date) => {
+              const dataEntry = dataByDate.get(date);
+              const renderApp = appByDate.get(date);
+              return (
+                <React.Fragment key={date}>
+                  {dataEntry && (
+                    <div className="relative">
+                      <div className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-sky-400 border-2 border-white ring-2 ring-sky-400/20" />
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="text-[12px] font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
+                          {dataEntry.date}
+                        </span>
+                      </div>
+                      <div className="font-bold text-slate-800 text-xs sm:text-sm mb-2 flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-sky-500 inline-block"></span>
+                        <span>データ更新</span>
+                      </div>
+                      <ul className="space-y-2 text-[11px] sm:text-xs text-slate-600 leading-relaxed pl-2">
+                        {dataEntry.items.map((item, idx) => {
+                          if (typeof item === 'string') {
+                            return (
+                              <li key={idx} className="flex items-start gap-1.5">
+                                <span className="text-slate-400 select-none">-</span>
+                                <span>{item}</span>
+                              </li>
+                            );
+                          }
+                          const badgeStyle =
+                            item.category === 'new_song'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : item.category === 'another_vocal'
+                              ? 'bg-purple-50 text-purple-700 border-purple-200'
+                              : item.category === 'connect_live'
+                              ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                              : 'bg-sky-50 text-sky-700 border-sky-200';
+                          return (
+                            <li key={idx} className="flex items-start gap-1.5">
+                              <span className="text-slate-400 select-none mt-0.5">-</span>
+                              <div className="space-x-1.5">
+                                <span
+                                  className={`inline-block px-1.5 py-0.5 rounded border text-[10px] font-bold leading-none ${badgeStyle}`}
+                                >
+                                  {item.label}
+                                </span>
+                                <span className="text-slate-700">{item.text}</span>
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  )}
+                  {renderApp && renderApp()}
+                </React.Fragment>
+              );
+            });
+          })()}
         </div>
       </div>
 

@@ -72,6 +72,9 @@ export const MenuView: React.FC<MenuViewProps> = ({
   const [undoBackup, setUndoBackup] = useState<Record<string, boolean> | null>(null);
   const undoTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // 更新履歴タブ用State
+  const [changelogTab, setChangelogTab] = useState<'all' | 'data' | 'feature' | 'bugfix'>('all');
+
   // ご意見・ご要望 / 不具合・バグ報告フォーム用State
   const [feedbackType, setFeedbackType] = useState<'feedback' | 'bug'>('feedback');
   const [feedbackCategory, setFeedbackCategory] = useState<string>('機能追加・改善');
@@ -481,196 +484,239 @@ export const MenuView: React.FC<MenuViewProps> = ({
           </div>
         </div>
 
-        <div className="pt-1 text-xs text-slate-600 border-l-2 border-slate-200 ml-3 pl-4 space-y-6">
-          {(() => {
-            const dataByDate = new Map<string, DataChangelogEntry>(
-              (dataChangelog as DataChangelogEntry[]).map((e) => [e.date, e])
+        {/* 更新履歴カテゴリ切り替えタブ */}
+        <div className="grid grid-cols-4 gap-1 p-1 bg-slate-100/80 rounded-xl">
+          {[
+            { id: 'all' as const, label: 'すべて' },
+            { id: 'data' as const, label: 'データ更新' },
+            { id: 'feature' as const, label: '新機能' },
+            { id: 'bugfix' as const, label: '不具合修正' },
+          ].map((tab) => {
+            const isActive = changelogTab === tab.id;
+            const activeColor =
+              tab.id === 'data'
+                ? 'text-sky-600'
+                : tab.id === 'feature'
+                ? 'text-[#22998c]'
+                : tab.id === 'bugfix'
+                ? 'text-amber-600'
+                : 'text-slate-800';
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setChangelogTab(tab.id)}
+                className={`py-1.5 px-1 sm:px-2 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer truncate ${
+                  isActive
+                    ? `bg-white ${activeColor} shadow-xs`
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {tab.label}
+              </button>
             );
+          })}
+        </div>
 
-            const appByDate = new Map<string, () => React.ReactNode>([
-              [
-                '2026.11.15',
-                () => (
-                  <div className="relative">
-                    <span className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-amber-400 ring-4 ring-white" />
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="font-bold font-mono text-slate-800 text-sm">2026.11.15</span>
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-700">
-                        <AlertTriangle className="w-2.5 h-2.5" />
-                        <span>不具合修正</span>
-                      </span>
-                    </div>
-                    <ul className="space-y-1.5 text-[11px] sm:text-xs text-slate-600 leading-relaxed pl-1">
-                      <li className="flex items-start gap-1.5">
-                        <span className="text-slate-400 select-none">-</span>
-                        <span>
-                          <strong className="text-slate-700 font-semibold">[データ管理] 進捗の共有・引継ぎが正常に行われない可能性がある問題の修正</strong>
-                          （チェック状態を保護するための確認画面やコード検証機能を追加しました。
-                          <span className="text-amber-700 font-medium">
-                            ※今回の更新以前に発行された進捗コードや共有URLでは、進捗の共有・引継ぎが正常に完了しない可能性があります
-                          </span>
-                          ）
-                        </span>
-                      </li>
-                    </ul>
-                  </div>
-                ),
-              ],
-              [
-                '2026.11.14',
-                () => (
-                  <div className="relative">
-                    <span className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-[#33ccbb] ring-4 ring-white" />
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="font-bold font-mono text-slate-800 text-sm">2026.11.14</span>
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#33ccbb]/15 text-[#22998c]">
-                        <Sparkles className="w-2.5 h-2.5" />
-                        <span>新機能</span>
-                      </span>
-                    </div>
-                    <ul className="space-y-1.5 text-[11px] sm:text-xs text-slate-600 leading-relaxed pl-1">
-                      <li className="flex items-start gap-1.5">
-                        <span className="text-slate-400 select-none">-</span>
-                        <span>
-                          <strong className="text-slate-700 font-semibold">[メニュー] お問い合わせフォームを追加</strong>（ご意見・ご要望フォームおよび不具合・バグ報告フォームから直接開発者へ送信できるようになりました）
-                        </span>
-                      </li>
-                    </ul>
-                  </div>
-                ),
-              ],
-              [
-                '2026.11.13',
-                () => (
-                  <div className="relative">
-                    <div className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-[#33ccbb] border-2 border-white ring-2 ring-[#33ccbb]/20" />
+        {/* スクロール可能なタイムライン領域 */}
+        <div className="max-h-96 overflow-y-auto pr-2 overscroll-contain">
+          <div className="py-1 text-xs text-slate-600 border-l-2 border-slate-200 ml-3 pl-4 space-y-6">
+            {(() => {
+              const dataByDate = new Map<string, DataChangelogEntry>(
+                (dataChangelog as DataChangelogEntry[]).map((e) => [e.date, e])
+              );
 
-                    {/* 日付ヘッダー */}
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <span className="text-[12px] font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">2026.11.13</span>
-                    </div>
+              type AppEntry = {
+                kind: 'feature' | 'bugfix' | 'data';
+                renderBody: () => React.ReactNode;
+              };
 
-                    {/* 新機能見出し */}
-                    <div className="font-bold text-slate-800 text-xs sm:text-sm mb-2 flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span>
-                      <span>新機能</span>
-                    </div>
-
-                    {/* 箇条書きリスト */}
-                    <div className="space-y-3 text-[11px] sm:text-xs text-slate-600 leading-relaxed">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-slate-400 select-none">-</span>
-                        <span className="font-semibold text-slate-800">初期リリース</span>
-                      </div>
-
-                      {/* リスト表示 */}
-                      <div className="space-y-1.5 pt-0.5">
-                        <div className="font-bold text-slate-700 flex items-center gap-1.5 text-[11px]">
-                          <span className="w-1 h-3 bg-[#33ccbb] rounded-full inline-block" />
-                          <span>リスト表示</span>
-                        </div>
-                        <ul className="space-y-1.5 pl-2">
+              const appEntriesByDate = new Map<string, AppEntry[]>([
+                [
+                  '2026.11.15',
+                  [
+                    {
+                      kind: 'bugfix',
+                      renderBody: () => (
+                        <ul className="space-y-1.5 text-[11px] sm:text-xs text-slate-600 leading-relaxed pl-1">
                           <li className="flex items-start gap-1.5">
                             <span className="text-slate-400 select-none">-</span>
                             <span>
-                              <strong className="text-slate-700 font-semibold">[チェック] 所持・未所持チェック</strong>（ワンタップでレコードの所持状況を記録し達成率を表示。クイックチェックモードでチェックに特化）
-                            </span>
-                          </li>
-                          <li className="flex items-start gap-1.5">
-                            <span className="text-slate-400 select-none">-</span>
-                            <span>
-                              <strong className="text-slate-700 font-semibold">[並替・絞込] 多彩な検索・フィルター</strong>（ユニット、キャラクター、音源ver、書き下ろし種別、バナーキャラ等の詳細な絞り込みや五十音・実装日等の並べ替え）
-                            </span>
-                          </li>
-                          <li className="flex items-start gap-1.5">
-                            <span className="text-slate-400 select-none">-</span>
-                            <span>
-                              <strong className="text-slate-700 font-semibold">[楽曲詳細] 楽曲の詳細情報</strong>（ジャケット画像、収録verの詳細等）の確認
+                              <strong className="text-slate-700 font-semibold">[データ管理] 進捗の共有・引継ぎが正常に行われない可能性がある問題の修正</strong>
+                              （チェック状態を保護するための確認画面やコード検証機能を追加しました。
+                              <span className="text-amber-700 font-medium">
+                                ※今回の更新以前に発行された進捗コードや共有URLでは、進捗の共有・引継ぎが正常に完了しない可能性があります
+                              </span>
+                              ）
                             </span>
                           </li>
                         </ul>
-                      </div>
-
-                      {/* 所持率比較 */}
-                      <div className="space-y-1.5 pt-0.5">
-                        <div className="font-bold text-slate-700 flex items-center gap-1.5 text-[11px]">
-                          <span className="w-1 h-3 bg-indigo-400 rounded-full inline-block" />
-                          <span>所持率比較</span>
-                        </div>
-                        <ul className="space-y-1.5 pl-2">
+                      ),
+                    },
+                  ],
+                ],
+                [
+                  '2026.11.14',
+                  [
+                    {
+                      kind: 'feature',
+                      renderBody: () => (
+                        <ul className="space-y-1.5 text-[11px] sm:text-xs text-slate-600 leading-relaxed pl-1">
                           <li className="flex items-start gap-1.5">
                             <span className="text-slate-400 select-none">-</span>
                             <span>
-                              <strong className="text-slate-700 font-semibold">[比較・集計] 達成率の比較機能</strong>（ユニット別、音源ver別、周年・年度別、キャラクター別の収集率グラフ表示や、自由な条件で集計できるカスタム比較）
+                              <strong className="text-slate-700 font-semibold">[メニュー] お問い合わせフォームを追加</strong>（ご意見・ご要望フォームおよび不具合・バグ報告フォームから直接開発者へ送信できるようになりました）
                             </span>
                           </li>
                         </ul>
-                      </div>
+                      ),
+                    },
+                  ],
+                ],
+                [
+                  '2026.11.13',
+                  [
+                    {
+                      kind: 'feature',
+                      renderBody: () => (
+                        <div className="space-y-3 text-[11px] sm:text-xs text-slate-600 leading-relaxed pl-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-slate-400 select-none">-</span>
+                            <span className="font-semibold text-slate-800">初期リリース</span>
+                          </div>
 
-                      {/* メニュー */}
-                      <div className="space-y-1.5 pt-0.5">
-                        <div className="font-bold text-slate-700 flex items-center gap-1.5 text-[11px]">
-                          <span className="w-1 h-3 bg-amber-400 rounded-full inline-block" />
-                          <span>メニュー</span>
+                          {/* リスト表示 */}
+                          <div className="space-y-1.5 pt-0.5">
+                            <div className="font-bold text-slate-700 flex items-center gap-1.5 text-[11px]">
+                              <span className="w-1 h-3 bg-[#33ccbb] rounded-full inline-block" />
+                              <span>リスト表示</span>
+                            </div>
+                            <ul className="space-y-1.5 pl-2">
+                              <li className="flex items-start gap-1.5">
+                                <span className="text-slate-400 select-none">-</span>
+                                <span>
+                                  <strong className="text-slate-700 font-semibold">[チェック] 所持・未所持チェック</strong>（ワンタップでレコードの所持状況を記録し達成率を表示。クイックチェックモードでチェックに特化）
+                                </span>
+                              </li>
+                              <li className="flex items-start gap-1.5">
+                                <span className="text-slate-400 select-none">-</span>
+                                <span>
+                                  <strong className="text-slate-700 font-semibold">[並替・絞込] 多彩な検索・フィルター</strong>（ユニット、キャラクター、音源ver、書き下ろし種別、バナーキャラ等の詳細な絞り込みや五十音・実装日等の並べ替え）
+                                </span>
+                              </li>
+                              <li className="flex items-start gap-1.5">
+                                <span className="text-slate-400 select-none">-</span>
+                                <span>
+                                  <strong className="text-slate-700 font-semibold">[楽曲詳細] 楽曲の詳細情報</strong>（ジャケット画像、収録verの詳細等）の確認
+                                </span>
+                              </li>
+                            </ul>
+                          </div>
+
+                          {/* 所持率比較 */}
+                          <div className="space-y-1.5 pt-0.5">
+                            <div className="font-bold text-slate-700 flex items-center gap-1.5 text-[11px]">
+                              <span className="w-1 h-3 bg-indigo-400 rounded-full inline-block" />
+                              <span>所持率比較</span>
+                            </div>
+                            <ul className="space-y-1.5 pl-2">
+                              <li className="flex items-start gap-1.5">
+                                <span className="text-slate-400 select-none">-</span>
+                                <span>
+                                  <strong className="text-slate-700 font-semibold">[比較・集計] 達成率の比較機能</strong>（ユニット別、音源ver別、周年・年度別、キャラクター別の収集率グラフ表示や、自由な条件で集計できるカスタム比較）
+                                </span>
+                              </li>
+                            </ul>
+                          </div>
+
+                          {/* メニュー */}
+                          <div className="space-y-1.5 pt-0.5">
+                            <div className="font-bold text-slate-700 flex items-center gap-1.5 text-[11px]">
+                              <span className="w-1 h-3 bg-amber-400 rounded-full inline-block" />
+                              <span>メニュー</span>
+                            </div>
+                            <ul className="space-y-1.5 pl-2">
+                              <li className="flex items-start gap-1.5">
+                                <span className="text-slate-400 select-none">-</span>
+                                <span>
+                                  <strong className="text-slate-700 font-semibold">[データ管理] 進捗保存・共有機能</strong>（URL共有および進捗コードによる端末間のデータ引き継ぎや、楽曲の全選択・全解除機能）
+                                </span>
+                              </li>
+                              <li className="flex items-start gap-1.5">
+                                <span className="text-slate-400 select-none">-</span>
+                                <span>
+                                  <strong className="text-slate-700 font-semibold">[表示設定] リスト表示のカスタマイズ</strong>（ジャケット、実装日、実装順、歌唱バッジ等の表示・非表示切り替えやコンパクト表示対応）
+                                </span>
+                              </li>
+                            </ul>
+                          </div>
                         </div>
-                        <ul className="space-y-1.5 pl-2">
+                      ),
+                    },
+                    {
+                      kind: 'data',
+                      renderBody: () => (
+                        <ul className="space-y-1.5 text-[11px] sm:text-xs text-slate-600 leading-relaxed pl-1">
                           <li className="flex items-start gap-1.5">
                             <span className="text-slate-400 select-none">-</span>
-                            <span>
-                              <strong className="text-slate-700 font-semibold">[データ管理] 進捗保存・共有機能</strong>（URL共有および進捗コードによる端末間のデータ引き継ぎや、楽曲の全選択・全解除機能）
-                            </span>
-                          </li>
-                          <li className="flex items-start gap-1.5">
-                            <span className="text-slate-400 select-none">-</span>
-                            <span>
-                              <strong className="text-slate-700 font-semibold">[表示設定] リスト表示のカスタマイズ</strong>（ジャケット、実装日、実装順、歌唱バッジ等の表示・非表示切り替えやコンパクト表示対応）
-                            </span>
+                            <span>2026.11.11までに追加された楽曲、楽曲バージョンの情報を反映</span>
                           </li>
                         </ul>
-                      </div>
-                    </div>
+                      ),
+                    },
+                  ],
+                ],
+              ]);
 
-                    {/* データ見出し */}
-                    <div className="font-bold text-slate-800 text-xs sm:text-sm mt-3.5 mb-2 flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-sky-500 inline-block"></span>
-                      <span>データ</span>
-                    </div>
+              const allDates = Array.from(
+                new Set([...dataByDate.keys(), ...appEntriesByDate.keys()])
+              ).sort((a, b) => b.localeCompare(a));
 
-                    {/* データリスト */}
-                    <ul className="space-y-1.5 text-[11px] sm:text-xs text-slate-600 leading-relaxed">
-                      <li className="flex items-start gap-1.5">
-                        <span className="text-slate-400 select-none">-</span>
-                        <span>2026.11.11までに追加された楽曲、楽曲バージョンの情報を反映</span>
-                      </li>
-                    </ul>
-                  </div>
-                ),
-              ],
-            ]);
+              const renderHeaderBadge = (kind: 'data' | 'feature' | 'bugfix') => {
+                if (kind === 'data') {
+                  return (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200/70">
+                      <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
+                      <span>データ更新</span>
+                    </span>
+                  );
+                }
+                if (kind === 'bugfix') {
+                  return (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200/70">
+                      <AlertTriangle className="w-2.5 h-2.5" />
+                      <span>不具合修正</span>
+                    </span>
+                  );
+                }
+                return (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#33ccbb]/15 text-[#22998c] border border-[#33ccbb]/30">
+                    <Sparkles className="w-2.5 h-2.5" />
+                    <span>新機能</span>
+                  </span>
+                );
+              };
 
-            // アプリ更新と自動データ更新を日付降順で統合表示
-            const allDates = Array.from(
-              new Set([...dataByDate.keys(), ...appByDate.keys()])
-            ).sort((a, b) => b.localeCompare(a));
+              const dotColorMap = {
+                data: 'bg-sky-400 ring-sky-400/20',
+                feature: 'bg-[#33ccbb] ring-[#33ccbb]/20',
+                bugfix: 'bg-amber-400 ring-amber-400/20',
+              };
 
-            return allDates.map((date) => {
-              const dataEntry = dataByDate.get(date);
-              const renderApp = appByDate.get(date);
-              return (
-                <React.Fragment key={date}>
-                  {dataEntry && (
-                    <div className="relative">
-                      <div className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-sky-400 border-2 border-white ring-2 ring-sky-400/20" />
-                      <div className="flex items-center gap-2 mb-1.5">
-                        <span className="text-[12px] font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
-                          {dataEntry.date}
-                        </span>
-                      </div>
-                      <div className="font-bold text-slate-800 text-xs sm:text-sm mb-2 flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-sky-500 inline-block"></span>
-                        <span>データ更新</span>
-                      </div>
-                      <ul className="space-y-2 text-[11px] sm:text-xs text-slate-600 leading-relaxed pl-2">
+              const nodes = allDates.flatMap((date) => {
+                const itemsForDate: {
+                  key: string;
+                  kind: 'data' | 'feature' | 'bugfix';
+                  body: React.ReactNode;
+                }[] = [];
+
+                const dataEntry = dataByDate.get(date);
+                if (dataEntry && (changelogTab === 'all' || changelogTab === 'data')) {
+                  itemsForDate.push({
+                    key: `${date}-auto-data`,
+                    kind: 'data',
+                    body: (
+                      <ul className="space-y-2 text-[11px] sm:text-xs text-slate-600 leading-relaxed pl-1">
                         {dataEntry.items.map((item, idx) => {
                           if (typeof item === 'string') {
                             return (
@@ -703,13 +749,48 @@ export const MenuView: React.FC<MenuViewProps> = ({
                           );
                         })}
                       </ul>
+                    ),
+                  });
+                }
+
+                const appEntries = appEntriesByDate.get(date) || [];
+                appEntries.forEach((entry, idx) => {
+                  if (changelogTab === 'all' || changelogTab === entry.kind) {
+                    itemsForDate.push({
+                      key: `${date}-app-${idx}`,
+                      kind: entry.kind,
+                      body: entry.renderBody(),
+                    });
+                  }
+                });
+
+                return itemsForDate.map((node) => (
+                  <div key={node.key} className="relative">
+                    <div
+                      className={`absolute -left-[21px] top-1.5 w-2.5 h-2.5 rounded-full border-2 border-white ring-2 ${dotColorMap[node.kind]}`}
+                    />
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-[12px] font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
+                        {date}
+                      </span>
+                      {renderHeaderBadge(node.kind)}
                     </div>
-                  )}
-                  {renderApp && renderApp()}
-                </React.Fragment>
-              );
-            });
-          })()}
+                    {node.body}
+                  </div>
+                ));
+              });
+
+              if (nodes.length === 0) {
+                return (
+                  <p className="text-xs text-slate-400 py-4 text-center">
+                    該当する更新履歴はまだありません。
+                  </p>
+                );
+              }
+
+              return nodes;
+            })()}
+          </div>
         </div>
       </div>
 

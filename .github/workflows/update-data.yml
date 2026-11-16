@@ -51,7 +51,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add src/data/allRecords.ts src/data/dataChangelog.json src/data/dataSnapshots.json src/data/allImportedRecords.json records_spreadsheet.csv records_spreadsheet.tsv
+          git add src/data/allRecords.ts src/data/dataChangelog.json src/data/dataSnapshots.json src/data/allImportedRecords.json records_spreadsheet.csv records_spreadsheet.tsv public/assets/jackets scripts/jacket_url_map.json
           if git diff --staged --quiet; then
             echo "ステージングされた変更はありません。"
           else

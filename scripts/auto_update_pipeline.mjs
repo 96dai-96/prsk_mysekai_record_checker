@@ -107,9 +107,10 @@ async function main() {
   const oldMap = new Map(oldRecords.map((r) => [r.title, r]));
   console.log(`更新前の楽曲数: ${oldRecords.length}件`);
 
-  // 2. データ一括更新の実行
+  // 2. データ一括更新の実行 ＋ ジャケット画像のローカルアセット同期
   try {
     await runScript('update_all_data.mjs');
+    await runScript('sync_jackets.mjs');
   } catch (err) {
     // 失敗時は allRecords.ts を元に戻す
     if (oldContent) fs.writeFileSync(ALL_RECORDS_PATH, oldContent, 'utf8');

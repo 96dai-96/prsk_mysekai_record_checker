@@ -1,11 +1,15 @@
 {
-  "currentRevision": 1,
+  "currentRevision": 2,
   "revisions": {
     "1": {
       "label": "2026.11.15-r1",
       "updatedAt": "2026-11-15",
       "recordCount": 733
+    },
+    "2": {
+      "label": "2026.11.16-r2",
+      "updatedAt": "2026-11-16",
+      "recordCount": 734
     }
   }
 }
-

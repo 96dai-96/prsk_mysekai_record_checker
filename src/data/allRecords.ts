@@ -1,4 +1,4 @@
-// 自動生成ファイル (pjsekai.com より全733曲インポート・公式pronunciation読み仮名適用済み・シンガーID正規化済み・書き下ろし分類およびバナーキャラ付与済み)
+// 自動生成ファイル (pjsekai.com より全734曲インポート・公式pronunciation読み仮名適用済み・シンガーID正規化済み・書き下ろし分類およびバナーキャラ付与済み)
 import type { RecordItem } from '../types/record';
 
 export const ALL_RECORDS: RecordItem[] = [
@@ -38218,5 +38218,39 @@ export const ALL_RECORDS: RecordItem[] = [
     ],
     "originalType": "event",
     "bannerCharacter": "shizuku"
+  },
+  {
+    "id": "rec_734",
+    "title": "スロウライト",
+    "reading": "すろうらいと",
+    "unit": "virtual_singer",
+    "releaseDate": "2026-11-16",
+    "defaultOrder": 734,
+    "defaultSort": 10271,
+    "jacketUrl": "/assets/jackets/e2eb2c7111857bc4.jpg",
+    "jacketUrlVs": "/assets/jackets/e2eb2c7111857bc4.jpg",
+    "jacketUrlSekai": "/assets/jackets/e2eb2c7111857bc4.jpg",
+    "vocalVersions": {
+      "sekai": false,
+      "virtualSinger": true,
+      "connectLive": false,
+      "anotherVocal": false,
+      "movie": false,
+      "inst": false
+    },
+    "characters": [
+      "miku"
+    ],
+    "vocalTracks": [
+      {
+        "id": "rec_734_t1",
+        "name": "バーチャル・シンガーver.",
+        "type": "virtual_singer",
+        "singers": [
+          "miku"
+        ]
+      }
+    ],
+    "originalType": "cover"
   }
 ];

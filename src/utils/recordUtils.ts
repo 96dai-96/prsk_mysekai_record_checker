@@ -69,6 +69,93 @@ const ALL_UNIT_KEYS: RecordItem['unit'][] = [
   'other',
 ];
 
+type VocalVersionKey = 'sekai' | 'virtualSinger' | 'connectLive' | 'anotherVocal' | 'inst';
+
+interface SharedRecordCriteria {
+  units: FilterOptions['units'];
+  unitMatchMode: NonNullable<FilterOptions['unitMatchType']>;
+  skipUnitCheckWhenAllSelected?: boolean;
+  characters: string[];
+  characterMatchMode: NonNullable<FilterOptions['characterMatchType']>;
+  vocalTypes: VocalVersionKey[];
+  vocalMatchMode: NonNullable<FilterOptions['vocalMatchType']>;
+  originalTypes: NonNullable<FilterOptions['originalTypes']>;
+  bannerCharacters: string[];
+  releaseYears: number[];
+}
+
+/**
+ * リスト絞り込みとカスタム比較で共通する楽曲属性（ユニット・キャラ・歌唱ver・分類・バナー・年）の一致判定
+ */
+function matchesSharedRecordCriteria(
+  record: RecordItem,
+  criteria: SharedRecordCriteria
+): boolean {
+  // 1. 対象ユニット判定
+  if (criteria.units.length > 0 && !criteria.skipUnitCheckWhenAllSelected) {
+    const recordUnits =
+      record.units && record.units.length > 0 ? record.units : [record.unit];
+    if (criteria.unitMatchMode === 'and') {
+      if (!criteria.units.every((u) => recordUnits.includes(u))) return false;
+    } else {
+      if (!recordUnits.some((u) => criteria.units.includes(u))) return false;
+    }
+  }
+
+  // 2. 歌唱キャラクター判定
+  if (criteria.characters.length > 0) {
+    if (criteria.characterMatchMode === 'and_same_track') {
+      const tracks = record.vocalTracks || [];
+      const hasTrackWithAllChars = tracks.some((track) =>
+        criteria.characters.every((cId) => track.singers && track.singers.includes(cId))
+      );
+      if (!hasTrackWithAllChars) return false;
+    } else if (criteria.characterMatchMode === 'and_all') {
+      if (!criteria.characters.every((cId) => record.characters.includes(cId))) {
+        return false;
+      }
+    } else {
+      if (!criteria.characters.some((cId) => record.characters.includes(cId))) {
+        return false;
+      }
+    }
+  }
+
+  // 3. 歌唱バージョン判定
+  if (criteria.vocalTypes.length > 0) {
+    if (criteria.vocalMatchMode === 'and') {
+      if (!criteria.vocalTypes.every((vt) => Boolean(record.vocalVersions?.[vt]))) {
+        return false;
+      }
+    } else {
+      if (!criteria.vocalTypes.some((vt) => Boolean(record.vocalVersions?.[vt]))) {
+        return false;
+      }
+    }
+  }
+
+  // 4. 楽曲分類（書き下ろし種別）判定
+  if (criteria.originalTypes.length > 0) {
+    const type = record.originalType || 'cover';
+    if (!criteria.originalTypes.includes(type)) return false;
+  }
+
+  // 5. バナーキャラクター判定
+  if (criteria.bannerCharacters.length > 0) {
+    if (!record.bannerCharacter || !criteria.bannerCharacters.includes(record.bannerCharacter)) {
+      return false;
+    }
+  }
+
+  // 6. 実装年判定
+  if (criteria.releaseYears.length > 0) {
+    const year = getAnniversaryYear(record.releaseDate);
+    if (!criteria.releaseYears.includes(year)) return false;
+  }
+
+  return true;
+}
+
 export const filterAndSortRecords = (
   records: RecordItem[],
   ownedRecordIds: Record<string, boolean>,
@@ -84,7 +171,7 @@ export const filterAndSortRecords = (
   const vocalMatchMode = filterOptions.vocalMatchType || 'or';
 
   // 選択されている歌唱バージョンキーの抽出
-  const selectedVocals: ('sekai' | 'virtualSinger' | 'connectLive' | 'anotherVocal' | 'inst')[] = [];
+  const selectedVocals: VocalVersionKey[] = [];
   if (filterOptions.vocalVersions.sekai) selectedVocals.push('sekai');
   if (filterOptions.vocalVersions.virtualSinger) selectedVocals.push('virtualSinger');
   if (filterOptions.vocalVersions.connectLive) selectedVocals.push('connectLive');
@@ -95,11 +182,11 @@ export const filterAndSortRecords = (
     .filter((record) => {
       const isOwned = !!ownedRecordIds[record.id];
 
-      // 1. 所持ステータス絞り込み
+      // 所持ステータス絞り込み
       if (filterOptions.ownership === 'owned' && !isOwned) return false;
       if (filterOptions.ownership === 'unowned' && isOwned) return false;
 
-      // 2. 検索クエリ
+      // 検索クエリ
       if (filterOptions.searchQuery.trim() !== '') {
         const q = filterOptions.searchQuery.toLowerCase();
         const matchTitle = record.title.toLowerCase().includes(q);
@@ -107,77 +194,23 @@ export const filterAndSortRecords = (
         if (!matchTitle && !matchReading) return false;
       }
 
-      // 3. 対象ユニット絞り込み
+      // 対象ユニットがすべて未選択の場合は 0 件
       if (filterOptions.units.length === 0) {
         return false;
       }
-      const recordUnits =
-        record.units && record.units.length > 0 ? record.units : [record.unit];
-      if (unitMatchMode === 'and') {
-        const hasAllUnits = filterOptions.units.every((u) => recordUnits.includes(u));
-        if (!hasAllUnits) return false;
-      } else {
-        if (!isAllUnitsSelected) {
-          const hasAnyUnit = recordUnits.some((u) => filterOptions.units.includes(u));
-          if (!hasAnyUnit) return false;
-        }
-      }
 
-      // 4. 歌唱キャラクター絞り込み
-      if (filterOptions.characters.length > 0) {
-        if (charMatchMode === 'and_same_track') {
-          // 1つの歌唱バージョン（トラック）で選択キャラ全員が歌唱しているか
-          const tracks = record.vocalTracks || [];
-          const hasTrackWithAllChars = tracks.some((track) =>
-            filterOptions.characters.every((cId) => track.singers && track.singers.includes(cId))
-          );
-          if (!hasTrackWithAllChars) return false;
-        } else if (charMatchMode === 'and_all') {
-          // 曲全体（いずれかのVer）で選択キャラ全員が存在するか
-          const hasAllCharsInSong = filterOptions.characters.every((cId) =>
-            record.characters.includes(cId)
-          );
-          if (!hasAllCharsInSong) return false;
-        } else {
-          // OR: 選択キャラのいずれかが歌唱しているか
-          const hasAnyChar = filterOptions.characters.some((cId) =>
-            record.characters.includes(cId)
-          );
-          if (!hasAnyChar) return false;
-        }
-      }
-
-      // 5. 歌唱バージョン条件絞り込み
-      if (selectedVocals.length > 0) {
-        if (vocalMatchMode === 'and') {
-          const hasAllVocals = selectedVocals.every((vKey) => Boolean(record.vocalVersions[vKey]));
-          if (!hasAllVocals) return false;
-        } else {
-          const hasAnyVocal = selectedVocals.some((vKey) => Boolean(record.vocalVersions[vKey]));
-          if (!hasAnyVocal) return false;
-        }
-      }
-
-      // 6. 楽曲分類（書き下ろし種別）
-      if (filterOptions.originalTypes && filterOptions.originalTypes.length > 0) {
-        const type = record.originalType || 'cover';
-        if (!filterOptions.originalTypes.includes(type)) return false;
-      }
-
-      // 7. バナーキャラクター
-      if (filterOptions.bannerCharacters && filterOptions.bannerCharacters.length > 0) {
-        if (!record.bannerCharacter || !filterOptions.bannerCharacters.includes(record.bannerCharacter)) {
-          return false;
-        }
-      }
-
-      // 8. 実装年
-      if (filterOptions.releaseYears && filterOptions.releaseYears.length > 0) {
-        const year = getAnniversaryYear(record.releaseDate);
-        if (!filterOptions.releaseYears.includes(year)) return false;
-      }
-
-      return true;
+      return matchesSharedRecordCriteria(record, {
+        units: filterOptions.units,
+        unitMatchMode,
+        skipUnitCheckWhenAllSelected: unitMatchMode !== 'and' && isAllUnitsSelected,
+        characters: filterOptions.characters,
+        characterMatchMode: charMatchMode,
+        vocalTypes: selectedVocals,
+        vocalMatchMode,
+        originalTypes: filterOptions.originalTypes || [],
+        bannerCharacters: filterOptions.bannerCharacters || [],
+        releaseYears: filterOptions.releaseYears || [],
+      });
     })
     .sort((a, b) => {
       let compare = 0;
@@ -671,64 +704,15 @@ export const checkRecordMatchesCustomCondition = (
     return legacyResults.some((r) => r === true);
   }
 
-  // 1. ユニット判定
-  if (units.length > 0) {
-    const recordUnits = record.units && record.units.length > 0 ? record.units : [record.unit];
-    if (cond.unitMatchType === 'and') {
-      const hasAll = units.every((u) => recordUnits.includes(u));
-      if (!hasAll) return false;
-    } else {
-      const hasAny = recordUnits.some((u) => units.includes(u));
-      if (!hasAny) return false;
-    }
-  }
-
-  // 2. キャラクター判定
-  if (characters.length > 0) {
-    if (cond.characterMatchType === 'and_same_track') {
-      const tracks = record.vocalTracks || [];
-      const hasSameTrack = tracks.some((track) =>
-        characters.every((cId) => track.singers && track.singers.includes(cId))
-      );
-      if (!hasSameTrack) return false;
-    } else if (cond.characterMatchType === 'and_all') {
-      const hasAll = characters.every((cId) => record.characters.includes(cId));
-      if (!hasAll) return false;
-    } else {
-      const hasAny = characters.some((cId) => record.characters.includes(cId));
-      if (!hasAny) return false;
-    }
-  }
-
-  // 3. 歌唱バージョン判定
-  if (vocalTypes.length > 0) {
-    if (cond.vocalMatchType === 'and') {
-      const hasAll = vocalTypes.every((vt) => Boolean(record.vocalVersions?.[vt]));
-      if (!hasAll) return false;
-    } else {
-      const hasAny = vocalTypes.some((vt) => Boolean(record.vocalVersions?.[vt]));
-      if (!hasAny) return false;
-    }
-  }
-
-  // 4. 楽曲分類判定
-  if (originalTypes.length > 0) {
-    const type = record.originalType || 'cover';
-    if (!originalTypes.includes(type)) return false;
-  }
-
-  // 5. バナーキャラクター判定
-  if (bannerCharacters.length > 0) {
-    if (!record.bannerCharacter || !bannerCharacters.includes(record.bannerCharacter)) {
-      return false;
-    }
-  }
-
-  // 6. 実装年判定
-  if (releaseYears.length > 0) {
-    const year = getAnniversaryYear(record.releaseDate);
-    if (!releaseYears.includes(year)) return false;
-  }
-
-  return true;
+  return matchesSharedRecordCriteria(record, {
+    units,
+    unitMatchMode: cond.unitMatchType || 'or',
+    characters,
+    characterMatchMode: cond.characterMatchType || 'or',
+    vocalTypes,
+    vocalMatchMode: cond.vocalMatchType || 'or',
+    originalTypes,
+    bannerCharacters,
+    releaseYears,
+  });
 };

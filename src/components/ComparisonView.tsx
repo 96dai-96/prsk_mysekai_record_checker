@@ -460,7 +460,7 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
       let createdAt = cond.createdAt;
       if (!createdAt) {
         const match = cond.id.match(/^cond_(\d+)$/);
-        createdAt = match ? parseInt(match[1], 10) : Date.now() - index * 1000;
+        createdAt = match ? parseInt(match[1], 10) : -index * 1000;
       }
 
       return {

@@ -27,14 +27,17 @@ export const RecordDetailModal: React.FC<RecordDetailModalProps> = ({
   onSelectJacketIndex,
 }) => {
   const tracksListRef = useRef<HTMLDivElement>(null);
-  const [activeIndex, setActiveIndex] = useState<number>(0);
+  const syncKey = `${record?.id ?? ''}:${currentJacketIndex}`;
+  const [prevSyncKey, setPrevSyncKey] = useState(syncKey);
+  const [activeIndex, setActiveIndex] = useState<number>(currentJacketIndex || 0);
+
+  if (syncKey !== prevSyncKey) {
+    setPrevSyncKey(syncKey);
+    setActiveIndex(currentJacketIndex || 0);
+  }
 
   // モーダル表示時に背後のスクロールを防止
   useBodyScrollLock(isOpen);
-
-  useEffect(() => {
-    setActiveIndex(currentJacketIndex || 0);
-  }, [record?.id, currentJacketIndex]);
 
   const handleSelectIndex = (idx: number) => {
     setActiveIndex(idx);

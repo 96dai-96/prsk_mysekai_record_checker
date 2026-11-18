@@ -39,27 +39,12 @@ const UnitBadgeItem: React.FC<{ unit: UnitType; badgeTextShadow: string }> = ({
   );
 };
 
-// ユニット表示コンポーネント（1行で収まりきる場合は全ユニット表示、日付等で見切れる場合は2ユニットでも「複合」表記）
-const RecordUnitDisplay: React.FC<{
+// 複数ユニット表示用サブコンポーネント（Hooks を無条件で実行するため分離）
+const MultiUnitDisplay: React.FC<{
   units: UnitType[];
   badgeTextShadow: string;
 }> = ({ units, badgeTextShadow }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-
-  // 単一ユニットの場合は常に通常表示
-  if (units.length <= 1) {
-    const u = units[0];
-    const uMeta = u ? UNIT_METAS[u] : null;
-    if (!uMeta) return null;
-    return (
-      <div className="flex items-center gap-1 min-w-0">
-        <span className="text-[10px] font-bold text-slate-500 shrink-0 mr-0.5 hidden min-[400px]:inline">
-          ユニット
-        </span>
-        <UnitBadgeItem unit={u} badgeTextShadow={badgeTextShadow} />
-      </div>
-    );
-  }
 
   // 複数ユニットの場合の必要幅（ラベルの約34pxを加味）
   const requiredWidth = useMemo(
@@ -132,6 +117,28 @@ const RecordUnitDisplay: React.FC<{
       )}
     </div>
   );
+};
+
+// ユニット表示コンポーネント（1行で収まりきる場合は全ユニット表示、日付等で見切れる場合は2ユニットでも「複合」表記）
+const RecordUnitDisplay: React.FC<{
+  units: UnitType[];
+  badgeTextShadow: string;
+}> = ({ units, badgeTextShadow }) => {
+  if (units.length <= 1) {
+    const u = units[0];
+    const uMeta = u ? UNIT_METAS[u] : null;
+    if (!uMeta) return null;
+    return (
+      <div className="flex items-center gap-1 min-w-0">
+        <span className="text-[10px] font-bold text-slate-500 shrink-0 mr-0.5 hidden min-[400px]:inline">
+          ユニット
+        </span>
+        <UnitBadgeItem unit={u} badgeTextShadow={badgeTextShadow} />
+      </div>
+    );
+  }
+
+  return <MultiUnitDisplay units={units} badgeTextShadow={badgeTextShadow} />;
 };
 
 interface RecordRowProps {

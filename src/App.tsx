@@ -5,7 +5,7 @@ import { ListView } from './components/ListView';
 import { ComparisonView } from './components/ComparisonView';
 import { MenuView } from './components/MenuView';
 import { ShareRestoreModal } from './components/ShareRestoreModal';
-import { MOCK_RECORDS } from './data/mockRecords';
+import { ALL_RECORDS } from './data/allRecords';
 import { parseShareData, type ParsedShareData } from './utils/recordUtils';
 import type { DisplaySettings, FilterOptions, SortSettings } from './types/record';
 
@@ -140,7 +140,7 @@ export const App: React.FC = () => {
       const params = new URLSearchParams(window.location.search);
       const shareData = params.get('share');
       if (shareData) {
-        return parseShareData(shareData, { records: MOCK_RECORDS });
+        return parseShareData(shareData, { records: ALL_RECORDS });
       }
     } catch {
       // ignore
@@ -198,7 +198,7 @@ export const App: React.FC = () => {
   // 一括所持 / 一括解除
   const handleBatchCheckAll = (owned: boolean) => {
     const updated: Record<string, boolean> = {};
-    MOCK_RECORDS.forEach((r) => {
+    ALL_RECORDS.forEach((r) => {
       updated[r.id] = owned;
     });
     setOwnedRecordIds(updated);
@@ -218,14 +218,14 @@ export const App: React.FC = () => {
         currentTab={currentTab}
         onTabChange={setCurrentTab}
         ownedCount={ownedTotalCount}
-        totalCount={MOCK_RECORDS.length}
+        totalCount={ALL_RECORDS.length}
       />
 
       {/* メインコンテンツエリア */}
       <main className="flex-1 pb-16">
         {currentTab === 'list' && (
           <ListView
-            records={MOCK_RECORDS}
+            records={ALL_RECORDS}
             ownedRecordIds={ownedRecordIds}
             onToggleOwned={handleToggleOwned}
             displaySettings={displaySettings}
@@ -239,7 +239,7 @@ export const App: React.FC = () => {
 
         {currentTab === 'comparison' && (
           <ComparisonView
-            records={MOCK_RECORDS}
+            records={ALL_RECORDS}
             ownedRecordIds={ownedRecordIds}
             onNavigateToList={handleNavigateToListWithFilter}
           />
@@ -247,7 +247,7 @@ export const App: React.FC = () => {
 
         {currentTab === 'menu' && (
           <MenuView
-            records={MOCK_RECORDS}
+            records={ALL_RECORDS}
             ownedRecordIds={ownedRecordIds}
             onBatchCheckAll={handleBatchCheckAll}
             onImportData={handleImportData}
@@ -279,7 +279,7 @@ export const App: React.FC = () => {
       <ShareRestoreModal
         parsed={pendingUrlShare}
         currentOwnedCount={ownedTotalCount}
-        totalCount={MOCK_RECORDS.length}
+        totalCount={ALL_RECORDS.length}
         source="url"
         onConfirm={handleConfirmUrlShare}
         onCancel={handleCancelUrlShare}

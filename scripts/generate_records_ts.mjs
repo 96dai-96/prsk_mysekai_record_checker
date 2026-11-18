@@ -1,6 +1,5 @@
 import fs from 'fs';
 import path from 'path';
-import https from 'https';
 import * as cheerio from 'cheerio';
 import { fileURLToPath } from 'url';
 

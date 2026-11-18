@@ -317,7 +317,7 @@ async function main() {
     }
 
     // 実装日が未定・予定・無効な形式の場合は除外
-    if (!/^\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}$/.test(releaseDate)) {
+    if (!/^\d{4}[/-]\d{1,2}[/-]\d{1,2}$/.test(releaseDate)) {
       console.warn(`[スキップ] 実装日が未確定または不正な形式: ${title} (${releaseDate})`);
       return;
     }

@@ -12795,6 +12795,16 @@
         "rawType": "アナザーボーカルver.",
         "type": "another_vocal",
         "rawSingers": [
+          "望月穂波"
+        ],
+        "singers": [
+          "honami"
+        ]
+      },
+      {
+        "rawType": "アナザーボーカルver.",
+        "type": "another_vocal",
+        "rawSingers": [
           "日野森志歩"
         ],
         "singers": [
@@ -12809,6 +12819,16 @@
         ],
         "singers": [
           "len"
+        ]
+      },
+      {
+        "rawType": "アナザーボーカルver.",
+        "type": "another_vocal",
+        "rawSingers": [
+          "MEIKO"
+        ],
+        "singers": [
+          "meiko"
         ]
       },
       {
@@ -25990,13 +26010,33 @@
         "singers": [
           "miku"
         ]
+      },
+      {
+        "rawType": "アナザーボーカルver.",
+        "type": "another_vocal",
+        "rawSingers": [
+          "天馬司"
+        ],
+        "singers": [
+          "tsukasa"
+        ]
+      },
+      {
+        "rawType": "アナザーボーカルver.",
+        "type": "another_vocal",
+        "rawSingers": [
+          "草薙寧々"
+        ],
+        "singers": [
+          "nene"
+        ]
       }
     ],
     "vocalVersions": {
       "sekai": true,
       "virtualSinger": true,
       "connectLive": false,
-      "anotherVocal": false
+      "anotherVocal": true
     },
     "jacketUrl": "https://pjsekai.com/?plugin=ref&page=%E6%B7%B7%E6%B2%8C%E3%83%96%E3%82%AE&src=%E6%B7%B7%E6%B2%8C%E3%83%96%E3%82%AE.jpg"
   },

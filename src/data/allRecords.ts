@@ -12903,6 +12903,7 @@ export const ALL_RECORDS: RecordItem[] = [
       "shiho",
       "gumi",
       "len",
+      "meiko",
       "kaito"
     ],
     "vocalTracks": [
@@ -12930,7 +12931,7 @@ export const ALL_RECORDS: RecordItem[] = [
         "name": "アナザーボーカルver.",
         "type": "another_vocal",
         "singers": [
-          "shiho"
+          "honami"
         ]
       },
       {
@@ -12938,11 +12939,27 @@ export const ALL_RECORDS: RecordItem[] = [
         "name": "アナザーボーカルver.",
         "type": "another_vocal",
         "singers": [
-          "len"
+          "shiho"
         ]
       },
       {
         "id": "rec_222_t5",
+        "name": "アナザーボーカルver.",
+        "type": "another_vocal",
+        "singers": [
+          "len"
+        ]
+      },
+      {
+        "id": "rec_222_t6",
+        "name": "アナザーボーカルver.",
+        "type": "another_vocal",
+        "singers": [
+          "meiko"
+        ]
+      },
+      {
+        "id": "rec_222_t7",
         "name": "アナザーボーカルver.",
         "type": "another_vocal",
         "singers": [
@@ -26668,7 +26685,7 @@ export const ALL_RECORDS: RecordItem[] = [
       "sekai": true,
       "virtualSinger": true,
       "connectLive": false,
-      "anotherVocal": false,
+      "anotherVocal": true,
       "movie": false,
       "inst": false
     },
@@ -26699,6 +26716,22 @@ export const ALL_RECORDS: RecordItem[] = [
         "type": "virtual_singer",
         "singers": [
           "miku"
+        ]
+      },
+      {
+        "id": "rec_492_t3",
+        "name": "アナザーボーカルver.",
+        "type": "another_vocal",
+        "singers": [
+          "tsukasa"
+        ]
+      },
+      {
+        "id": "rec_492_t4",
+        "name": "アナザーボーカルver.",
+        "type": "another_vocal",
+        "singers": [
+          "nene"
         ]
       }
     ],

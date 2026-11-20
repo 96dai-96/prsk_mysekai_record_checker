@@ -1,4 +1,4 @@
-// 自動生成ファイル (pjsekai.com より全734曲インポート・公式pronunciation読み仮名適用済み・シンガーID正規化済み・書き下ろし分類およびバナーキャラ付与済み)
+// 自動生成ファイル (pjsekai.com より全735曲インポート・公式pronunciation読み仮名適用済み・シンガーID正規化済み・書き下ろし分類およびバナーキャラ付与済み)
 import type { RecordItem } from '../types/record';
 
 export const ALL_RECORDS: RecordItem[] = [
@@ -38281,6 +38281,40 @@ export const ALL_RECORDS: RecordItem[] = [
         "type": "virtual_singer",
         "singers": [
           "miku"
+        ]
+      }
+    ],
+    "originalType": "cover"
+  },
+  {
+    "id": "rec_735",
+    "title": "レグルス（REMIX）",
+    "reading": "れぐるす（REMIX）",
+    "unit": "virtual_singer",
+    "releaseDate": "2026-11-20",
+    "defaultOrder": 735,
+    "defaultSort": 20025,
+    "jacketUrl": "/assets/jackets/8ff5ce35a519a652.jpg",
+    "jacketUrlVs": "/assets/jackets/8ff5ce35a519a652.jpg",
+    "jacketUrlSekai": "/assets/jackets/8ff5ce35a519a652.jpg",
+    "vocalVersions": {
+      "sekai": false,
+      "virtualSinger": true,
+      "connectLive": false,
+      "anotherVocal": false,
+      "movie": false,
+      "inst": false
+    },
+    "characters": [
+      "rin"
+    ],
+    "vocalTracks": [
+      {
+        "id": "rec_735_t1",
+        "name": "バーチャル・シンガーver.",
+        "type": "virtual_singer",
+        "singers": [
+          "rin"
         ]
       }
     ],

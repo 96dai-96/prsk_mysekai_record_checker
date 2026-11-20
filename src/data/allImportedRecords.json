@@ -36786,5 +36786,35 @@
       "anotherVocal": false
     },
     "jacketUrl": "https://pjsekai.com/?plugin=ref&page=%E3%82%B9%E3%83%AD%E3%82%A6%E3%83%A9%E3%82%A4%E3%83%88&src=%E3%82%B9%E3%83%AD%E3%82%A6%E3%83%A9%E3%82%A4%E3%83%88.jpg"
+  },
+  {
+    "no": 735,
+    "defaultSort": 20025,
+    "category": "書",
+    "title": "レグルス（REMIX）",
+    "unitRaw": "0_VS",
+    "unitId": "virtual_singer",
+    "unitName": "バーチャル・シンガー",
+    "releaseDate": "2026/11/20",
+    "detailUrl": "https://pjsekai.com/?f85cfe6242",
+    "vocalTracks": [
+      {
+        "rawType": "バーチャル・シンガーver.",
+        "type": "virtual_singer",
+        "rawSingers": [
+          "鏡音リン"
+        ],
+        "singers": [
+          "rin"
+        ]
+      }
+    ],
+    "vocalVersions": {
+      "sekai": false,
+      "virtualSinger": true,
+      "connectLive": false,
+      "anotherVocal": false
+    },
+    "jacketUrl": "https://pjsekai.com/?plugin=ref&page=%E3%83%AC%E3%82%B0%E3%83%AB%E3%82%B9%EF%BC%88REMIX%EF%BC%89&src=%E3%83%AC%E3%82%B0%E3%83%AB%E3%82%B9%EF%BC%88REMIX%EF%BC%89.jpg"
   }
 ]

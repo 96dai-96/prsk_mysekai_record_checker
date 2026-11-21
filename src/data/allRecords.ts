@@ -38289,7 +38289,7 @@ export const ALL_RECORDS: RecordItem[] = [
   {
     "id": "rec_735",
     "title": "レグルス（REMIX）",
-    "reading": "れぐるす（REMIX）",
+    "reading": "れぐるすりみっくす",
     "unit": "virtual_singer",
     "releaseDate": "2026-11-20",
     "defaultOrder": 735,
